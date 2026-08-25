@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Accessibility,
@@ -40,7 +40,7 @@ import {
 import Footer from "../../components/Footer/Footer";
 import FooterDivider from "../../components/FooterDivider/FooterDivider";
 import Header from "../../components/Header/Header";
-import daLogo from "../../assets/logo/logo.png";
+import daLogoSinCaja from "../../assets/logo/daLogoSinCaja.png";
 import { routes } from "../../config/routes";
 import "./AboutPage.css";
 
@@ -1017,11 +1017,632 @@ function renderEducationIcon(icon) {
   return renderProfileIcon(icon);
 }
 
+// Relative layout (fraction of container width/height) for the 5 section
+// nodes drawn around the center. Order matches pageCopy.sections.
+const MESH_NODE_LAYOUT = [
+  { hx: 0.2, hy: 0.22 },
+  { hx: 0.7, hy: 0.14 },
+  { hx: 0.88, hy: 0.55 },
+  { hx: 0.55, hy: 0.85 },
+  { hx: 0.15, hy: 0.66 },
+];
+
+const MESH_DUST_COUNT = 90;
+const MESH_CURSOR_RADIUS = 120;
+const MESH_LINK_DISTANCE = 42;
+const MESH_NODE_HIT_RADIUS = 28;
+const MESH_CENTER_HIT_RADIUS = 58;
+
+// One-shot "wake up" intro sequence, played once when the mesh mounts:
+// 1) nodes pop in one by one, 2) a phantom cursor sweeps the canvas so the
+// hover-mesh effect previews itself once, 3) everything settles into real
+// rest and starts responding only to the real cursor.
+const MESH_INTRO_NODE_DELAY = 320; // ms between each node's pop-in
+const MESH_INTRO_NODE_DURATION = 580; // ms for a single node's pop-in
+const MESH_INTRO_NODES_END = (MESH_NODE_LAYOUT.length - 1) * MESH_INTRO_NODE_DELAY
+  + MESH_INTRO_NODE_DURATION;
+
+const MESH_INTRO_SWEEP_DELAY = MESH_INTRO_NODES_END + 100; // brief pause before the sweep
+const MESH_INTRO_SWEEP_DURATION = 1100; // phantom cursor sweep across the canvas
+
+const MESH_INTRO_PULSE_DELAY = MESH_INTRO_SWEEP_DELAY + MESH_INTRO_SWEEP_DURATION + 50;
+const MESH_INTRO_PULSE_DURATION = 480; // closing pulse on the center, once the mesh has settled
+
+const MESH_INTRO_TOTAL_MS = MESH_INTRO_PULSE_DELAY + MESH_INTRO_PULSE_DURATION;
+
+// Short curved path (hx/hy fractions of the canvas) the phantom cursor
+// travels during the sweep, grazing a few of the section nodes.
+const MESH_PHANTOM_PATH = [
+  { hx: 0.05, hy: 0.46 },
+  { hx: 0.22, hy: 0.16 },
+  { hx: 0.74, hy: 0.12 },
+  { hx: 0.9, hy: 0.58 },
+];
+
+function cubicBezierPoint(points, t) {
+  const [p0, p1, p2, p3] = points;
+  const u = 1 - t;
+  return {
+    hx: u * u * u * p0.hx + 3 * u * u * t * p1.hx + 3 * u * t * t * p2.hx + t * t * t * p3.hx,
+    hy: u * u * u * p0.hy + 3 * u * u * t * p1.hy + 3 * u * t * t * p2.hy + t * t * t * p3.hy,
+  };
+}
+
+function smoothstep(t) {
+  return t * t * (3 - 2 * t);
+}
+
+// Overshoot easing (matches a cubic-bezier(.34,1.56,.64,1)-style pop).
+function easeOutBack(t) {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  const x = t - 1;
+  return 1 + c3 * x * x * x + c1 * x * x;
+}
+
+function hexToRgbString(hex) {
+  const clean = (hex || "").trim().replace("#", "");
+  if (clean.length !== 3 && clean.length !== 6) return "200, 137, 69";
+  const full = clean.length === 3
+    ? clean.split("").map((c) => c + c).join("")
+    : clean;
+  const value = parseInt(full, 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  return `${r}, ${g}, ${b}`;
+}
+
+// Deterministic pseudo-random generator so the dust field keeps the same
+// "home" layout across renders (only recalculated on real resize).
+function createDustSeed(count) {
+  let seed = 1337;
+  const rand = () => {
+    seed = (seed * 9301 + 49297) % 233280;
+    return seed / 233280;
+  };
+  return Array.from({ length: count }, () => ({ hx: rand(), hy: rand() }));
+}
+
+function AboutOrbitMesh({ sections, activeId, onSelect, ariaLabel, logoSrc }) {
+  const wrapRef = useRef(null);
+  const canvasRef = useRef(null);
+  const dustSeed = useMemo(() => createDustSeed(MESH_DUST_COUNT), []);
+
+  const activeIdRef = useRef(activeId);
+  const sectionsRef = useRef(sections);
+
+  useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
+
+  useEffect(() => {
+    sectionsRef.current = sections;
+  }, [sections]);
+
+  // "Interactúa conmigo" hint: shown once the wake-up intro finishes, hidden
+  // for good the moment the visitor first touches the canvas.
+  const [hintVisible, setHintVisible] = useState(false);
+  const hasInteractedRef = useRef(false);
+
+  const stateRef = useRef({
+    width: 0,
+    height: 0,
+    center: { x: 0, y: 0 },
+    nodes: [],
+    dust: [],
+    nodeLinks: [],
+    mouse: { x: 0, y: 0, active: false },
+    hoverNode: -1,
+    hoverCenter: false,
+    reducedMotion: false,
+    introStart: null,
+    phantomActive: false,
+    logo: null,
+    raf: null,
+    palette: {
+      accent: "#c88945",
+      accentRgb: "200, 137, 69",
+      text: "#f1ede5",
+      mono: '"Courier New", monospace',
+    },
+    draw: null,
+  });
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    const canvas = canvasRef.current;
+    if (!wrap || !canvas) return undefined;
+
+    const ctx = canvas.getContext("2d");
+    const state = stateRef.current;
+
+    const styles = getComputedStyle(wrap);
+    const accent = styles.getPropertyValue("--color-accent").trim() || "#c88945";
+    state.palette = {
+      accent,
+      accentRgb: hexToRgbString(accent),
+      text: styles.getPropertyValue("--color-text").trim() || "#f1ede5",
+      mono: styles.getPropertyValue("--font-mono").trim() || '"Courier New", monospace',
+    };
+
+    const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    state.reducedMotion = reducedMotionQuery.matches;
+    state.introStart = state.reducedMotion ? null : performance.now();
+    let dustBurstApplied = false;
+
+    if (logoSrc) {
+      const logo = new Image();
+      logo.onload = () => {
+        state.logo = logo;
+        draw();
+      };
+      logo.src = logoSrc;
+    }
+
+    function layout() {
+      const rect = wrap.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      state.width = rect.width;
+      state.height = rect.height;
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      state.center = { x: rect.width / 2, y: rect.height / 2 };
+
+      state.nodes = MESH_NODE_LAYOUT.map((pos) => ({
+        x: pos.hx * rect.width,
+        y: pos.hy * rect.height,
+      }));
+
+      const applyBurst = !dustBurstApplied && !state.reducedMotion;
+      state.dust = dustSeed.map((seed) => {
+        const homeX = seed.hx * rect.width;
+        const homeY = seed.hy * rect.height;
+        if (applyBurst) {
+          // Wake-up impulse: start slightly flung off "home" with a random
+          // velocity, then let the existing spring (step()) settle it back —
+          // same physics as the hover return, just a different starting state.
+          const angle = Math.random() * Math.PI * 2;
+          const dist = 14 + Math.random() * 46;
+          const speed = 0.5 + Math.random() * 1.6;
+          return {
+            homeX,
+            homeY,
+            x: homeX + Math.cos(angle) * dist,
+            y: homeY + Math.sin(angle) * dist,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+          };
+        }
+        return { homeX, homeY, x: homeX, y: homeY, vx: 0, vy: 0 };
+      });
+      dustBurstApplied = true;
+
+      state.nodeLinks = state.nodes.map((node, index) => {
+        const distances = state.dust
+          .map((d, i) => ({ i, dist: Math.hypot(d.homeX - node.x, d.homeY - node.y) }))
+          .sort((a, b) => a.dist - b.dist);
+        const count = index % 2 === 0 ? 3 : 2;
+        return distances.slice(0, count).map((entry) => entry.i);
+      });
+
+      draw();
+    }
+
+    function draw() {
+      const {
+        width, height, dust, nodes, nodeLinks, center, palette, mouse, hoverNode, hoverCenter,
+      } = state;
+      ctx.clearRect(0, 0, width, height);
+
+      ctx.fillStyle = `rgba(${palette.accentRgb}, 0.32)`;
+      dust.forEach((d) => {
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, 1.4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = `rgba(${palette.accentRgb}, 0.1)`;
+      nodeLinks.forEach((linkIdxs, i) => {
+        const node = nodes[i];
+        if (!node) return;
+        linkIdxs.forEach((di) => {
+          const d = dust[di];
+          if (!d) return;
+          ctx.beginPath();
+          ctx.moveTo(node.x, node.y);
+          ctx.lineTo(d.x, d.y);
+          ctx.stroke();
+        });
+      });
+
+      if (!state.reducedMotion && mouse.active) {
+        const nearby = [];
+        dust.forEach((d, i) => {
+          if (Math.hypot(d.x - mouse.x, d.y - mouse.y) < MESH_CURSOR_RADIUS) nearby.push(i);
+        });
+        for (let a = 0; a < nearby.length; a += 1) {
+          for (let b = a + 1; b < nearby.length; b += 1) {
+            const p1 = dust[nearby[a]];
+            const p2 = dust[nearby[b]];
+            const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+            if (dist < MESH_LINK_DISTANCE) {
+              const alpha = 0.5 * (1 - dist / MESH_LINK_DISTANCE);
+              ctx.strokeStyle = `rgba(${palette.accentRgb}, ${alpha.toFixed(3)})`;
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.stroke();
+            }
+          }
+        }
+      }
+
+      const activeIndex = sectionsRef.current.findIndex((s) => s.id === activeIdRef.current);
+      const activeNode = activeIndex >= 0 ? nodes[activeIndex] : null;
+      if (activeNode) {
+        const grad = ctx.createLinearGradient(center.x, center.y, activeNode.x, activeNode.y);
+        grad.addColorStop(0, `rgba(${palette.accentRgb}, 0.06)`);
+        grad.addColorStop(1, `rgba(${palette.accentRgb}, 0.85)`);
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(center.x, center.y);
+        ctx.lineTo(activeNode.x, activeNode.y);
+        ctx.stroke();
+      }
+
+      const centerRadius = hoverCenter ? 62 : 58;
+      const haloRadius = hoverCenter ? 108 : 92;
+      const haloGrad = ctx.createRadialGradient(
+        center.x, center.y, 0, center.x, center.y, haloRadius,
+      );
+      haloGrad.addColorStop(0, `rgba(${palette.accentRgb}, ${hoverCenter ? 0.32 : 0.2})`);
+      haloGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.fillStyle = haloGrad;
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, haloRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, centerRadius, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(15, 15, 13, 0.55)";
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = `rgba(${palette.accentRgb}, ${hoverCenter ? 0.75 : 0.5})`;
+      ctx.stroke();
+
+      if (state.logo) {
+        const size = centerRadius * 1.05;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, centerRadius - 6, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.filter = "sepia(0.4) brightness(1.18)";
+        ctx.drawImage(state.logo, center.x - size / 2, center.y - size / 2, size, size);
+        ctx.filter = "none";
+        ctx.restore();
+      } else {
+        ctx.fillStyle = palette.text;
+        ctx.font = `700 ${Math.round(centerRadius * 0.5)}px ${palette.mono}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("DA", center.x, center.y);
+      }
+
+      // Closing pulse of the wake-up intro: a brief outward ring off the
+      // center halo, once the nodes have finished popping in.
+      if (state.introStart) {
+        const pulseElapsed = performance.now() - state.introStart - MESH_INTRO_PULSE_DELAY;
+        if (pulseElapsed > 0 && pulseElapsed < MESH_INTRO_PULSE_DURATION) {
+          const pulseT = Math.sin((pulseElapsed / MESH_INTRO_PULSE_DURATION) * Math.PI);
+          const pulseRadius = haloRadius + pulseT * 46;
+          const pulseGrad = ctx.createRadialGradient(
+            center.x, center.y, haloRadius * 0.4, center.x, center.y, pulseRadius,
+          );
+          pulseGrad.addColorStop(0, "rgba(0, 0, 0, 0)");
+          pulseGrad.addColorStop(0.6, `rgba(${palette.accentRgb}, ${(pulseT * 0.28).toFixed(3)})`);
+          pulseGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = pulseGrad;
+          ctx.beginPath();
+          ctx.arc(center.x, center.y, pulseRadius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      nodes.forEach((node, i) => {
+        const section = sectionsRef.current[i];
+        const isActive = section && section.id === activeIdRef.current;
+        const isHover = hoverNode === i;
+        let introScale = 1;
+        if (state.introStart) {
+          const elapsed = performance.now() - state.introStart - i * MESH_INTRO_NODE_DELAY;
+          if (elapsed <= 0) introScale = 0.6;
+          else if (elapsed < MESH_INTRO_NODE_DURATION) {
+            introScale = 0.6 + 0.4 * easeOutBack(elapsed / MESH_INTRO_NODE_DURATION);
+          }
+        }
+        const scale = (isActive || isHover ? 1 : 0.86) * introScale;
+        const radius = 18 * scale;
+        const haloR = (isActive || isHover ? 44 : 28) * scale;
+        const haloAlpha = isActive ? 0.34 : isHover ? 0.28 : 0.12;
+
+        const grad = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, haloR);
+        grad.addColorStop(0, `rgba(${palette.accentRgb}, ${haloAlpha})`);
+        grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, haloR, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = isActive ? palette.accent : "rgba(15, 15, 13, 0.66)";
+        ctx.fill();
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = isActive ? palette.accent : `rgba(${palette.accentRgb}, 0.7)`;
+        ctx.stroke();
+
+        ctx.fillStyle = isActive ? "#17120d" : palette.accent;
+        ctx.font = `700 9px ${palette.mono}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(section ? section.number : "", node.x, node.y);
+
+        if (isActive || isHover) {
+          ctx.fillStyle = palette.text;
+          ctx.font = `700 9px ${palette.mono}`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          ctx.fillText((section ? section.label : "").toUpperCase(), node.x, node.y + radius + 8);
+        }
+      });
+    }
+
+    function updatePhantomSweep() {
+      // Drives state.mouse exactly like a real cursor would, so the existing
+      // dust-pull (below) and mesh-line drawing reuse the same code path for
+      // this one-shot preview. Bails out permanently the moment the visitor
+      // interacts for real.
+      if (!state.introStart || hasInteractedRef.current) return;
+
+      const elapsed = performance.now() - state.introStart - MESH_INTRO_SWEEP_DELAY;
+      if (elapsed < 0 || elapsed > MESH_INTRO_SWEEP_DURATION) {
+        if (state.phantomActive) {
+          state.mouse.active = false;
+          state.phantomActive = false;
+        }
+        return;
+      }
+
+      const t = smoothstep(Math.min(1, elapsed / MESH_INTRO_SWEEP_DURATION));
+      const point = cubicBezierPoint(MESH_PHANTOM_PATH, t);
+      state.mouse.x = point.hx * state.width;
+      state.mouse.y = point.hy * state.height;
+      state.mouse.active = true;
+      state.phantomActive = true;
+    }
+
+    function step() {
+      updatePhantomSweep();
+      const { dust, mouse } = state;
+      dust.forEach((d) => {
+        let targetX = d.homeX;
+        let targetY = d.homeY;
+        if (mouse.active) {
+          const dx = mouse.x - d.homeX;
+          const dy = mouse.y - d.homeY;
+          const dist = Math.hypot(dx, dy);
+          if (dist < MESH_CURSOR_RADIUS) {
+            const pull = 1 - dist / MESH_CURSOR_RADIUS;
+            targetX = d.homeX + dx * pull * 0.82;
+            targetY = d.homeY + dy * pull * 0.82;
+          }
+        }
+        const ax = (targetX - d.x) * 0.06;
+        const ay = (targetY - d.y) * 0.06;
+        d.vx = (d.vx + ax) * 0.82;
+        d.vy = (d.vy + ay) * 0.82;
+
+        if (
+          Math.abs(d.vx) < 0.01
+          && Math.abs(d.vy) < 0.01
+          && Math.hypot(targetX - d.x, targetY - d.y) < 0.05
+        ) {
+          d.x = targetX;
+          d.y = targetY;
+          d.vx = 0;
+          d.vy = 0;
+        } else {
+          d.x += d.vx;
+          d.y += d.vy;
+        }
+      });
+      draw();
+      state.raf = requestAnimationFrame(step);
+    }
+
+    function getPos(evt) {
+      const rect = canvas.getBoundingClientRect();
+      return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+    }
+
+    function updateHover(pos) {
+      let hoverNode = -1;
+      state.nodes.forEach((node, i) => {
+        if (Math.hypot(node.x - pos.x, node.y - pos.y) < MESH_NODE_HIT_RADIUS) hoverNode = i;
+      });
+      const hoverCenter = Math.hypot(state.center.x - pos.x, state.center.y - pos.y)
+        < MESH_CENTER_HIT_RADIUS;
+      const changed = hoverNode !== state.hoverNode || hoverCenter !== state.hoverCenter;
+      state.hoverNode = hoverNode;
+      state.hoverCenter = hoverCenter;
+      canvas.style.cursor = hoverNode >= 0 || hoverCenter ? "pointer" : "default";
+      return changed;
+    }
+
+    function markInteracted() {
+      if (hasInteractedRef.current) return;
+      hasInteractedRef.current = true;
+      setHintVisible(false);
+    }
+
+    function handleMove(evt) {
+      markInteracted();
+      const pos = getPos(evt);
+      state.mouse.x = pos.x;
+      state.mouse.y = pos.y;
+      state.mouse.active = true;
+      const changed = updateHover(pos);
+      if (state.reducedMotion && changed) draw();
+    }
+
+    function handleLeave() {
+      state.mouse.active = false;
+      const changed = state.hoverNode !== -1 || state.hoverCenter;
+      state.hoverNode = -1;
+      state.hoverCenter = false;
+      canvas.style.cursor = "default";
+      if (state.reducedMotion && changed) draw();
+    }
+
+    function handleClick(evt) {
+      const pos = getPos(evt);
+      if (Math.hypot(state.center.x - pos.x, state.center.y - pos.y) < MESH_CENTER_HIT_RADIUS) {
+        onSelect("profile");
+        return;
+      }
+      state.nodes.forEach((node, i) => {
+        if (Math.hypot(node.x - pos.x, node.y - pos.y) < MESH_NODE_HIT_RADIUS) {
+          const section = sectionsRef.current[i];
+          if (section) onSelect(section.id);
+        }
+      });
+    }
+
+    state.draw = draw;
+
+    const ro = new ResizeObserver(() => layout());
+    ro.observe(wrap);
+    layout();
+
+    canvas.addEventListener("mousemove", handleMove);
+    canvas.addEventListener("mouseenter", markInteracted);
+    canvas.addEventListener("mouseleave", handleLeave);
+    canvas.addEventListener("click", handleClick);
+
+    if (!state.reducedMotion) {
+      state.raf = requestAnimationFrame(step);
+    }
+
+    return () => {
+      ro.disconnect();
+      canvas.removeEventListener("mousemove", handleMove);
+      canvas.removeEventListener("mouseenter", markInteracted);
+      canvas.removeEventListener("mouseleave", handleLeave);
+      canvas.removeEventListener("click", handleClick);
+      if (state.raf) cancelAnimationFrame(state.raf);
+    };
+  }, [logoSrc, onSelect, dustSeed]);
+
+  useEffect(() => {
+    if (stateRef.current.reducedMotion && stateRef.current.draw) {
+      stateRef.current.draw();
+    }
+  }, [activeId]);
+
+  // Reveal the "interactúa conmigo" hint once the wake-up intro has had time
+  // to finish, unless the visitor has already interacted by then.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (!hasInteractedRef.current) setHintVisible(true);
+    }, MESH_INTRO_TOTAL_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  // A short, discreet curved line from the hint pill (top-right corner) to
+  // whichever node sits closest to it, so the pill reads as pointing at the
+  // mesh instead of floating unrelated to it.
+  const hintLinePath = useMemo(() => {
+    const anchor = { hx: 0.93, hy: 0.085 };
+    let nearest = MESH_NODE_LAYOUT[0];
+    let nearestDist = Infinity;
+    MESH_NODE_LAYOUT.forEach((pos) => {
+      const dist = Math.hypot(pos.hx - anchor.hx, pos.hy - anchor.hy);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearest = pos;
+      }
+    });
+    const midX = (anchor.hx + nearest.hx) * 50;
+    const midY = (anchor.hy + nearest.hy) * 50;
+    const ctrlX = midX - 6;
+    const ctrlY = midY - 5;
+    return `M ${anchor.hx * 100} ${anchor.hy * 100} Q ${ctrlX} ${ctrlY} ${nearest.hx * 100} ${nearest.hy * 100}`;
+  }, []);
+
+  return (
+    <div ref={wrapRef} className="about-mesh">
+      <canvas
+        ref={canvasRef}
+        className="about-mesh__canvas"
+        role="img"
+        aria-label={ariaLabel}
+      />
+
+      <button
+        type="button"
+        className="about-mesh__hit about-mesh__hit--center"
+        style={{ left: "50%", top: "50%" }}
+        onClick={() => onSelect("profile")}
+        aria-label="Daniel Aguilera"
+      />
+
+      {sections.map((section, index) => {
+        const pos = MESH_NODE_LAYOUT[index];
+        if (!pos) return null;
+        return (
+          <button
+            key={section.id}
+            type="button"
+            className="about-mesh__hit"
+            style={{ left: `${pos.hx * 100}%`, top: `${pos.hy * 100}%` }}
+            aria-pressed={activeId === section.id}
+            onClick={() => onSelect(section.id)}
+          >
+            <span className="about-mesh__hit-label">{`${section.number} ${section.label}`}</span>
+          </button>
+        );
+      })}
+
+      <div
+        className={
+          hintVisible ? "about-mesh__hint about-mesh__hint--visible" : "about-mesh__hint"
+        }
+        aria-hidden="true"
+      >
+        <svg
+          className="about-mesh__hint-line"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+        >
+          <path d={hintLinePath} />
+        </svg>
+        <span className="about-mesh__hint-pill">Interactúa conmigo</span>
+      </div>
+    </div>
+  );
+}
+
 function AboutPage({ lang = "es" }) {
   const pageCopy = copy[lang] || copy.es;
   const [activeId, setActiveId] = useState("profile");
   const [activeFilter, setActiveFilter] = useState("all");
-  const orbitRef = useRef(null);
 
   const activeSection = useMemo(
     () =>
@@ -1034,24 +1655,6 @@ function AboutPage({ lang = "es" }) {
     if (activeFilter === "all") return skills.filter((skill) => skill.featured);
     return skills.filter((skill) => skill.category === activeFilter);
   }, [activeFilter]);
-
-  const handleOrbitMove = (event) => {
-    if (!orbitRef.current) return;
-
-    const rect = orbitRef.current.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width - 0.5) * 2;
-    const y = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
-
-    orbitRef.current.style.setProperty("--orbit-x", x.toFixed(3));
-    orbitRef.current.style.setProperty("--orbit-y", y.toFixed(3));
-  };
-
-  const resetOrbit = () => {
-    if (!orbitRef.current) return;
-
-    orbitRef.current.style.setProperty("--orbit-x", "0");
-    orbitRef.current.style.setProperty("--orbit-y", "0");
-  };
 
   const renderProfilePanel = () => (
     <div className="about-profile-panel">
@@ -1465,49 +2068,13 @@ function AboutPage({ lang = "es" }) {
               </div>
             </div>
 
-            <div
-              ref={orbitRef}
-              className="about-orbit"
-              onMouseMove={handleOrbitMove}
-              onMouseLeave={resetOrbit}
-              aria-label={pageCopy.orbitalAria}
-            >
-              <div className="about-orbit__grid" aria-hidden="true" />
-              <div className="about-orbit__line about-orbit__line--one" aria-hidden="true" />
-              <div className="about-orbit__line about-orbit__line--two" aria-hidden="true" />
-              <div className="about-orbit__ring about-orbit__ring--wide" aria-hidden="true" />
-              <div className="about-orbit__ring about-orbit__ring--middle" aria-hidden="true" />
-              <div className="about-orbit__ring about-orbit__ring--tight" aria-hidden="true" />
-              <span className="about-orbit__spark about-orbit__spark--one" aria-hidden="true" />
-              <span className="about-orbit__spark about-orbit__spark--two" aria-hidden="true" />
-              <span className="about-orbit__spark about-orbit__spark--three" aria-hidden="true" />
-
-              <button
-                className="about-orbit__center"
-                type="button"
-                onClick={() => setActiveId("profile")}
-                aria-label="Daniel Aguilera"
-              >
-                <img src={daLogo} alt="" />
-              </button>
-
-              {pageCopy.sections.map((section) => (
-                <button
-                  key={section.id}
-                  className={
-                    activeId === section.id
-                      ? `about-node about-node--${section.id} about-node--active`
-                      : `about-node about-node--${section.id}`
-                  }
-                  type="button"
-                  aria-pressed={activeId === section.id}
-                  onClick={() => setActiveId(section.id)}
-                >
-                  <span className="about-node__dot">{section.number}</span>
-                  <span className="about-node__text">{section.label}</span>
-                </button>
-              ))}
-            </div>
+            <AboutOrbitMesh
+              sections={pageCopy.sections}
+              activeId={activeId}
+              onSelect={setActiveId}
+              ariaLabel={pageCopy.orbitalAria}
+              logoSrc={daLogoSinCaja}
+            />
           </div>
         </section>
 

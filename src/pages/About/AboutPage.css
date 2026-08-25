@@ -172,270 +172,104 @@
   font-size: 0.78rem;
 }
 
-.about-orbit {
-  --orbit-x: 0;
-  --orbit-y: 0;
+.about-mesh {
   position: relative;
   min-height: 354px;
-  transform:
-    translate3d(calc(var(--orbit-x) * 6px), calc(var(--orbit-y) * 6px), 0);
-  transition: transform 220ms ease;
 }
 
-.about-orbit::before,
-.about-orbit::after {
-  content: "";
+.about-mesh__hint {
   position: absolute;
-  left: 50%;
-  top: 49%;
-  border: 1px dashed rgba(200, 137, 69, 0.22);
-  border-radius: 50%;
+  inset: 0;
+  opacity: 0;
   pointer-events: none;
-  transform: translate(-50%, -50%) rotate(-18deg);
+  transition: opacity 500ms ease;
 }
 
-.about-orbit::before {
-  width: 748px;
-  height: 260px;
-  opacity: 0.34;
-  transform: translate(-50%, -50%) rotate(-6deg);
+.about-mesh__hint--visible {
+  opacity: 1;
 }
 
-.about-orbit::after {
-  width: 630px;
-  height: 178px;
-  opacity: 0.28;
-  transform: translate(-50%, -50%) rotate(12deg);
-}
-
-.about-orbit__grid {
+.about-mesh__hint-line {
   position: absolute;
-  inset: -28px -80px -18px -42px;
-  background-image:
-    linear-gradient(rgba(200, 137, 69, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(200, 137, 69, 0.055) 1px, transparent 1px);
-  background-size: 28px 28px;
-  mask-image: radial-gradient(ellipse at center, #000 10%, transparent 74%);
-  opacity: 0.58;
-  transform: rotate(-8deg);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
-.about-orbit__line {
+.about-mesh__hint-line path {
+  fill: none;
+  stroke: rgba(200, 137, 69, 0.4);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.about-mesh__hint-pill {
   position: absolute;
-  left: -1%;
-  right: -5%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(200, 137, 69, 0.34), transparent);
-  transform-origin: center;
-  opacity: 0.3;
-}
-
-.about-orbit__line--one {
-  top: 32%;
-  transform: rotate(-17deg);
-}
-
-.about-orbit__line--two {
-  top: 66%;
-  transform: rotate(15deg);
-}
-
-.about-orbit__ring {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  border: 1px dashed rgba(200, 137, 69, 0.32);
-  border-radius: 50%;
-  transform: translate(-50%, -50%) rotate(-11deg);
-  box-shadow: inset 0 0 28px rgba(200, 137, 69, 0.025);
-}
-
-.about-orbit__ring--wide {
-  width: 720px;
-  height: 218px;
-  border-color: rgba(200, 137, 69, 0.42);
-  animation: about-orbit-spin 34s linear infinite;
-}
-
-.about-orbit__ring--middle {
-  width: 580px;
-  height: 170px;
-  border-style: solid;
-  opacity: 0.5;
-  animation: about-orbit-spin 28s linear infinite reverse;
-}
-
-.about-orbit__ring--tight {
-  width: 392px;
-  height: 124px;
-  opacity: 0.4;
-  animation: about-orbit-spin 22s linear infinite;
-}
-
-.about-orbit__center {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 132px;
-  height: 132px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid rgba(241, 237, 229, 0.68);
-  border-radius: 8px;
-  background:
-    radial-gradient(circle at 50% 52%, rgba(200, 137, 69, 0.18), transparent 64%),
-    rgba(15, 15, 13, 0.28);
-  box-shadow:
-    0 0 62px rgba(200, 137, 69, 0.24),
-    0 0 18px rgba(241, 237, 229, 0.08),
-    inset 0 0 22px rgba(241, 237, 229, 0.04);
-  transform:
-    translate(-50%, -50%)
-    translate3d(calc(var(--orbit-x) * -10px), calc(var(--orbit-y) * -10px), 0);
-  cursor: pointer;
-}
-
-.about-orbit__center::before,
-.about-orbit__center::after {
-  content: "";
-  position: absolute;
-  width: 44px;
-  height: 1px;
-  background: rgba(241, 237, 229, 0.9);
-}
-
-.about-orbit__center::before {
-  top: -1px;
-  left: 36px;
-}
-
-.about-orbit__center::after {
-  bottom: -1px;
-  right: 36px;
-}
-
-.about-orbit__center img {
-  width: 94px;
-  height: 94px;
-  object-fit: contain;
-  filter: sepia(0.4) brightness(1.18);
-}
-
-.about-node {
-  position: absolute;
+  top: 12px;
+  right: 12px;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  padding: 7px 13px;
+  border: 1px solid var(--color-accent-soft);
+  border-radius: 999px;
+  background: rgba(15, 15, 13, 0.5);
   color: var(--color-text-muted);
   font-family: var(--font-mono);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition:
-    color 180ms ease,
-    transform 180ms ease;
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  backdrop-filter: blur(2px);
 }
 
-.about-node:hover,
-.about-node--active {
-  color: var(--color-text);
-  transform: translateY(-1px);
+@media (prefers-reduced-motion: reduce) {
+  .about-mesh__hint {
+    transition: none;
+  }
 }
 
-.about-node:focus {
-  outline: 0;
+.about-mesh__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-.about-node:focus-visible .about-node__dot {
+.about-mesh__hit {
+  position: absolute;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  pointer-events: none;
+}
+
+.about-mesh__hit--center {
+  width: 100px;
+  height: 100px;
+  margin: -50px 0 0 -50px;
+}
+
+.about-mesh__hit:focus-visible {
   outline: 1px solid rgba(200, 137, 69, 0.7);
   outline-offset: 3px;
 }
 
-.about-node--active {
-  border: 0;
-  outline: 0;
-  background: transparent;
-  box-shadow: none;
-  text-shadow: 0 0 12px rgba(200, 137, 69, 0.32);
-}
-
-.about-node__dot {
-  width: 24px;
-  height: 24px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(200, 137, 69, 0.7);
-  border-radius: 999px;
-  color: var(--color-accent);
-  font-size: 0.58rem;
-  background: rgba(15, 15, 13, 0.66);
-  box-shadow: 0 0 18px rgba(200, 137, 69, 0.09);
-}
-
-.about-node--active .about-node__dot {
-  color: #17120d;
-  border-color: var(--color-accent);
-  background: var(--color-accent);
-  box-shadow: 0 0 20px rgba(200, 137, 69, 0.28);
-}
-
-.about-node--active .about-node__text {
-  color: var(--color-text);
-}
-
-.about-node--profile {
-  left: 6%;
-  top: 36%;
-}
-
-.about-node--approach {
-  left: 57%;
-  top: 13%;
-}
-
-.about-node--strengths {
-  right: -1%;
-  top: 42%;
-}
-
-.about-node--process {
-  right: 18%;
-  bottom: 13%;
-}
-
-.about-node--education {
-  left: 5%;
-  bottom: 17%;
-}
-
-.about-orbit__spark {
+.about-mesh__hit-label {
   position: absolute;
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: #f0bd77;
-  box-shadow: 0 0 18px #c88945;
-}
-
-.about-orbit__spark--one {
-  left: 24%;
-  top: 36%;
-}
-
-.about-orbit__spark--two {
-  right: 24%;
-  top: 30%;
-}
-
-.about-orbit__spark--three {
-  left: 56%;
-  bottom: 22%;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .about-panel-section {
@@ -2301,23 +2135,13 @@
   justify-self: end;
 }
 
-@keyframes about-orbit-spin {
-  from {
-    transform: translate(-50%, -50%) rotate(-11deg);
-  }
-
-  to {
-    transform: translate(-50%, -50%) rotate(349deg);
-  }
-}
-
 @media (max-width: 1240px) {
   .about-hero__inner,
   .about-panel__body {
     grid-template-columns: 1fr;
   }
 
-  .about-orbit {
+  .about-mesh {
     min-height: 520px;
   }
 
@@ -2358,68 +2182,8 @@
     grid-template-columns: 1fr;
   }
 
-  .about-orbit {
+  .about-mesh {
     min-height: 430px;
-  }
-
-  .about-orbit__grid {
-    inset: 20px -20px;
-  }
-
-  .about-orbit__ring--wide {
-    width: 390px;
-    height: 190px;
-  }
-
-  .about-orbit__ring--middle {
-    width: 300px;
-    height: 150px;
-  }
-
-  .about-orbit__ring--tight {
-    width: 190px;
-    height: 110px;
-  }
-
-  .about-orbit__center {
-    width: 112px;
-    height: 112px;
-  }
-
-  .about-orbit__center img {
-    width: 76px;
-    height: 76px;
-  }
-
-  .about-node {
-    font-size: 0.64rem;
-  }
-
-  .about-node__text {
-    max-width: 92px;
-    overflow-wrap: anywhere;
-  }
-
-  .about-node--profile {
-    left: 2%;
-  }
-
-  .about-node--approach {
-    left: 44%;
-    top: 5%;
-  }
-
-  .about-node--strengths {
-    right: 0;
-  }
-
-  .about-node--process {
-    right: 5%;
-  }
-
-  .about-node--education {
-    left: 3%;
-    bottom: 14%;
   }
 
   .about-profile-panel,
@@ -2470,16 +2234,7 @@
     justify-content: space-between;
   }
 
-  .about-orbit {
+  .about-mesh {
     min-height: 360px;
-  }
-
-  .about-orbit__line {
-    left: -18%;
-    right: -18%;
-  }
-
-  .about-orbit__spark {
-    display: none;
   }
 }

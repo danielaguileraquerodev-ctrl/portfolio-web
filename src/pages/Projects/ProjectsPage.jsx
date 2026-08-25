@@ -1,9 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import FooterDivider from "../../components/FooterDivider/FooterDivider";
-import daLogo from "../../assets/logo/logo.png";
 import "./ProjectsPage.css";
+
+const CODE_LINE_STAGGER = 200;
+const CODE_LINE_DURATION = 500;
+const CODE_MESSAGE_DELAY = 300;
+const CODE_RESULTS_HOLD = 4000;
+const CODE_SCAN_DURATION = 4600;
+const CODE_DOT_INTERVAL = 450;
 
 const filters = {
   es: [
@@ -37,6 +43,12 @@ const pageCopy = {
     preview: "Preview",
     caseStudy: "Ver caso de estudio",
     viewProject: "Ver proyecto",
+    codeWindow: {
+      filename: "daniel-aguilera.dev/proyectos.js",
+      searching: "Buscando proyectos",
+      resultsFound: (count) => `✓ ${count} resultados encontrados`,
+      indexed: (count) => `${count} proyectos indexados`,
+    },
   },
   en: {
     heroId: "home",
@@ -50,6 +62,12 @@ const pageCopy = {
     preview: "Preview",
     caseStudy: "View case study",
     viewProject: "View project",
+    codeWindow: {
+      filename: "daniel-aguilera.dev/projects.js",
+      searching: "Searching projects",
+      resultsFound: (count) => `✓ ${count} results found`,
+      indexed: (count) => `${count} projects indexed`,
+    },
   },
 };
 
@@ -189,6 +207,214 @@ const projects = {
   ],
 };
 
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(() =>
+    typeof window !== "undefined"
+      ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      : false
+  );
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const handleChange = (event) => setReduced(event.matches);
+
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
+  return reduced;
+}
+
+function buildCodeLines(projectList, lang) {
+  const varName = lang === "en" ? "projects" : "proyectos";
+  const keyName = lang === "en" ? "name" : "nombre";
+
+  const lines = [
+    [
+      { type: "keyword", text: "const " },
+      { type: "plain", text: varName },
+      { type: "punct", text: " = [" },
+    ],
+  ];
+
+  projectList.forEach((project, index) => {
+    const isLast = index === projectList.length - 1;
+    lines.push([
+      { type: "punct", text: "  { " },
+      { type: "keyword", text: `${keyName}: ` },
+      { type: "string", text: `"${project.title}"` },
+      { type: "punct", text: isLast ? " }" : " }," },
+    ]);
+  });
+
+  lines.push([{ type: "punct", text: "];" }]);
+
+  return lines;
+}
+
+function ProjectCodeWindow({ lang, copy, projectList }) {
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const [phase, setPhase] = useState(() =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "results"
+      : "scanning"
+  );
+  const [dotCount, setDotCount] = useState(0);
+
+  const codeLines = useMemo(
+    () => buildCodeLines(projectList, lang),
+    [projectList, lang]
+  );
+
+  const count = String(projectList.length).padStart(2, "0");
+
+  useEffect(() => {
+    let scanTimer;
+    let resultsTimer;
+    let dotTimer;
+
+    const revealTime =
+      CODE_MESSAGE_DELAY +
+      codeLines.length * CODE_LINE_STAGGER +
+      CODE_LINE_DURATION;
+    const resultsDuration = revealTime + CODE_RESULTS_HOLD;
+
+    const stopDots = () => {
+      if (dotTimer) {
+        clearInterval(dotTimer);
+        dotTimer = undefined;
+      }
+    };
+
+    const toResults = () => {
+      stopDots();
+      setPhase("results");
+      resultsTimer = setTimeout(toScanning, resultsDuration);
+    };
+
+    const toScanning = () => {
+      setPhase("scanning");
+      dotTimer = setInterval(
+        () => setDotCount((value) => (value + 1) % 4),
+        CODE_DOT_INTERVAL
+      );
+      scanTimer = setTimeout(toResults, CODE_SCAN_DURATION);
+    };
+
+    // Deferred to a callback (rather than called synchronously here) so the
+    // state machine's first transition doesn't set state during the effect.
+    const startTimer = setTimeout(() => {
+      if (prefersReducedMotion) {
+        setPhase("results");
+      } else {
+        toScanning();
+      }
+    }, 0);
+
+    return () => {
+      clearTimeout(startTimer);
+      clearTimeout(scanTimer);
+      clearTimeout(resultsTimer);
+      stopDots();
+    };
+  }, [prefersReducedMotion, codeLines.length]);
+
+  return (
+    <div className="projects-page__code-wrap" aria-hidden="true">
+      <div className="projects-page__code-glow" />
+      <div className="projects-page__code-dots" />
+
+      <div
+        className={
+          prefersReducedMotion
+            ? "projects-page__code-window projects-page__code-window--static"
+            : "projects-page__code-window"
+        }
+      >
+        <div className="projects-page__code-topbar">
+          <span className="projects-page__code-dot projects-page__code-dot--red" />
+          <span className="projects-page__code-dot projects-page__code-dot--yellow" />
+          <span className="projects-page__code-dot projects-page__code-dot--green" />
+          <span className="projects-page__code-filename">
+            {copy.codeWindow.filename}
+          </span>
+        </div>
+
+        <div className="projects-page__code-body">
+          {phase === "scanning" ? (
+            <div className="projects-page__code-scan">
+              <div className="projects-page__code-scan-box">
+                <div className="projects-page__code-scan-beam" />
+              </div>
+              <p className="projects-page__code-scan-text">
+                {copy.codeWindow.searching}
+                <span className="projects-page__code-scan-dots">
+                  {[0, 1, 2].map((dotIndex) => (
+                    <span
+                      key={dotIndex}
+                      className={dotIndex < dotCount ? "is-active" : undefined}
+                    >
+                      .
+                    </span>
+                  ))}
+                </span>
+              </p>
+            </div>
+          ) : (
+            <div className="projects-page__code-results">
+              <p className="projects-page__code-check">
+                {copy.codeWindow.resultsFound(count)}
+              </p>
+
+              <pre className="projects-page__code-snippet">
+                {codeLines.map((tokens, lineIndex) => (
+                  <span
+                    className="projects-page__code-line"
+                    style={{
+                      animationDelay: `${
+                        CODE_MESSAGE_DELAY + lineIndex * CODE_LINE_STAGGER
+                      }ms`,
+                    }}
+                    key={lineIndex}
+                  >
+                    {tokens.map((token, tokenIndex) => (
+                      <span
+                        className={`projects-page__code-token projects-page__code-token--${token.type}`}
+                        key={tokenIndex}
+                      >
+                        {token.text}
+                      </span>
+                    ))}
+                    {lineIndex === codeLines.length - 1 && (
+                      <span
+                        className="projects-page__code-cursor"
+                        style={{
+                          animationDelay: `${
+                            CODE_MESSAGE_DELAY +
+                            codeLines.length * CODE_LINE_STAGGER
+                          }ms`,
+                        }}
+                      >
+                        ▍
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </pre>
+            </div>
+          )}
+        </div>
+
+        <div className="projects-page__code-statusbar">
+          <span className="projects-page__code-status-dot" />
+          <span>{copy.codeWindow.indexed(count)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProjectsPage({ lang = "es" }) {
   const copy = pageCopy[lang] ?? pageCopy.es;
   const filterList = filters[lang] ?? filters.es;
@@ -259,19 +485,7 @@ function ProjectsPage({ lang = "es" }) {
             </div>
           </div>
 
-          <div className="projects-page__visual" aria-hidden="true">
-            <div className="projects-page__visual-grid projects-page__visual-grid--one" />
-            <div className="projects-page__visual-grid projects-page__visual-grid--two" />
-            <div className="projects-page__visual-glow" />
-            <div className="projects-page__visual-line projects-page__visual-line--one" />
-            <div className="projects-page__visual-line projects-page__visual-line--two" />
-            <div className="projects-page__visual-cross projects-page__visual-cross--one" />
-            <div className="projects-page__visual-cross projects-page__visual-cross--two" />
-
-            <div className="projects-page__logo-frame">
-              <img src={daLogo} alt="" />
-            </div>
-          </div>
+          <ProjectCodeWindow lang={lang} copy={copy} projectList={projectList} />
         </div>
       </section>
 
@@ -295,6 +509,8 @@ function ProjectsPage({ lang = "es" }) {
                       {copy.preview}
                     </span>
                   </div>
+
+                  <span className="projects-page__card-sweep" aria-hidden="true" />
                 </div>
               </div>
 
@@ -369,6 +585,8 @@ function ProjectsPage({ lang = "es" }) {
                             {copy.preview}
                           </span>
                         </div>
+
+                        <span className="projects-page__card-sweep" aria-hidden="true" />
                       </div>
                     </div>
 

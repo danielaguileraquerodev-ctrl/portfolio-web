@@ -1,9 +1,14 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
 import FooterDivider from "../../components/FooterDivider/FooterDivider";
-import daLogo from "../../assets/logo/logo.png";
 import "./ContactPage.css";
+
+// Outline of the "DA" monogram, traced from the source PNG (src/assets/logo/
+// daLogoSinCaja.png) — no vector (.svg) version of the logo exists in the
+// project, so this path is the fallback supplied for the hero animation.
+const CONTACT_LOGO_PATH =
+  "M 0.97 0.49 L 1.46 1.46 L 8.75 4.38 L 12.64 8.27 L 16.05 17.99 L 16.53 178.44 L 15.07 189.63 L 12.64 195.46 L 8.75 199.84 L 0.97 203.73 L 0.0 205.19 L 86.06 205.67 L 107.94 204.21 L 116.69 202.76 L 119.61 201.3 L 125.45 187.2 L 114.26 191.09 L 102.59 193.52 L 74.39 194.49 L 62.24 193.52 L 50.57 191.09 L 47.16 188.65 L 45.71 184.76 L 45.71 11.67 L 47.16 10.7 L 90.92 10.7 L 106.97 12.64 L 119.61 16.53 L 133.23 23.82 L 146.84 35.98 L 154.13 46.19 L 161.91 62.72 L 165.32 74.88 L 167.75 92.38 L 167.75 105.02 L 166.29 119.12 L 162.4 137.12 L 151.22 164.83 L 107.94 258.18 L 101.13 265.96 L 95.79 268.4 L 95.3 269.85 L 130.79 269.37 L 127.88 267.42 L 125.93 264.51 L 125.93 259.16 L 150.24 206.65 L 152.19 205.19 L 233.87 205.19 L 239.22 216.37 L 255.27 257.21 L 255.27 264.02 L 252.35 267.42 L 249.43 268.4 L 248.95 269.85 L 300.0 269.85 L 299.51 268.4 L 294.65 266.45 L 289.79 262.07 L 283.47 251.38 L 217.83 93.35 L 216.86 93.35 L 209.56 115.72 L 203.73 128.85 L 203.73 131.28 L 226.09 183.79 L 229.01 192.54 L 157.54 192.54 L 189.14 130.79 L 195.46 114.26 L 197.89 101.62 L 197.41 80.23 L 192.06 60.29 L 181.85 41.33 L 169.21 26.74 L 159.97 18.96 L 146.35 10.7 L 131.77 4.86 L 119.12 1.94 L 96.27 0.0 Z";
 
 const copy = {
   es: {
@@ -21,6 +26,8 @@ const copy = {
     ),
     description:
       "Estoy abierto a oportunidades laborales, colaboraciones freelance y proyectos web donde pueda aportar desarrollo, estructura y cuidado visual.",
+    logoName: "Daniel Aguilera",
+    logoTagline: "Respondo personalmente cada mensaje",
     emailCta: "Escribirme por email",
     linkedinCta: "Ver LinkedIn",
     directLabel: "Contacto directo",
@@ -57,6 +64,8 @@ const copy = {
     ),
     description:
       "I am available for freelance work, collaborations and web development roles. Tell me about your idea, project or position and I will get back to you shortly.",
+    logoName: "Daniel Aguilera",
+    logoTagline: "Replies personally to every message",
     emailCta: "Write me by email",
     linkedinCta: "View LinkedIn",
     directLabel: "Direct contact",
@@ -128,6 +137,55 @@ function GitHubIcon() {
   );
 }
 
+// Animated "DA" monogram: draws its outline once, fills solid, then gets a
+// periodic shimmer sweep. See ContactPage.css for the keyframes — this
+// component only measures the real path length so the stroke-draw animation
+// covers it exactly (see contact-circle__logo-stroke).
+function ContactLogoMark() {
+  const pathRef = useRef(null);
+  const [pathLength, setPathLength] = useState(0);
+
+  useLayoutEffect(() => {
+    if (pathRef.current) {
+      setPathLength(pathRef.current.getTotalLength());
+    }
+  }, []);
+
+  return (
+    <svg className="contact-circle__logo" viewBox="0 0 300 270" aria-hidden="true">
+      <defs>
+        <clipPath id="contact-logo-clip">
+          <path d={CONTACT_LOGO_PATH} />
+        </clipPath>
+        <linearGradient id="contact-logo-shimmer-gradient" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="rgba(255, 244, 224, 0)" />
+          <stop offset="50%" stopColor="rgba(255, 244, 224, 0.65)" />
+          <stop offset="100%" stopColor="rgba(255, 244, 224, 0)" />
+        </linearGradient>
+      </defs>
+
+      <path
+        ref={pathRef}
+        className="contact-circle__logo-stroke"
+        d={CONTACT_LOGO_PATH}
+        style={pathLength ? { "--logo-path-length": pathLength } : undefined}
+      />
+      <path className="contact-circle__logo-fill" d={CONTACT_LOGO_PATH} />
+
+      <g clipPath="url(#contact-logo-clip)">
+        <rect
+          className="contact-circle__logo-shimmer"
+          x="-120"
+          y="0"
+          width="120"
+          height="270"
+          fill="url(#contact-logo-shimmer-gradient)"
+        />
+      </g>
+    </svg>
+  );
+}
+
 function ContactPage({ lang = "es" }) {
   const pageCopy = copy[lang] ?? copy.es;
 
@@ -185,17 +243,19 @@ function ContactPage({ lang = "es" }) {
           </div>
 
           <div className="contact-hero__visual" aria-hidden="true">
-            <div className="contact-visual__grid contact-visual__grid--main" />
-            <div className="contact-visual__grid contact-visual__grid--back" />
-            <div className="contact-visual__glow" />
-            <div className="contact-visual__line contact-visual__line--guide-top" />
-            <div className="contact-visual__line contact-visual__line--guide-bottom" />
-            <div className="contact-visual__cross contact-visual__cross--one" />
-            <div className="contact-visual__cross contact-visual__cross--two" />
-            <div className="contact-visual__cross contact-visual__cross--three" />
+            <div className="contact-circle">
+              <span className="contact-circle__glow" />
+              <span className="contact-circle__mark contact-circle__mark--top" />
+              <span className="contact-circle__mark contact-circle__mark--bottom" />
 
-            <div className="contact-visual__logo-card">
-              <img src={daLogo} alt="" draggable="false" />
+              <div className="contact-circle__ring">
+                <ContactLogoMark />
+              </div>
+            </div>
+
+            <div className="contact-circle__caption">
+              <p className="contact-circle__name">{pageCopy.logoName}</p>
+              <p className="contact-circle__tagline">{pageCopy.logoTagline}</p>
             </div>
           </div>
         </div>
