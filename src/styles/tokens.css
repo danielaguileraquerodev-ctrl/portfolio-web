@@ -1,0 +1,27 @@
+:root {
+  --color-bg: #0f0f0d;
+  --color-bg-soft: #181816;
+  --color-surface: #22221e;
+
+  --color-text: #f1ede5;
+  --color-text-muted: #a8a29a;
+  --color-text-subtle: #6f6a61;
+
+  --color-accent: #c88945;
+  --color-accent-soft: rgba(200, 137, 69, 0.14);
+
+  --color-success: #a8d46a;
+
+  --color-border: rgba(241, 237, 229, 0.1);
+  --color-border-strong: rgba(200, 137, 69, 0.45);
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: "Courier New", monospace;
+
+  --container: 1720px;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 24px;
+}
