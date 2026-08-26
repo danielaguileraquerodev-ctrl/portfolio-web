@@ -54,3 +54,47 @@ h4,
 p {
   margin: 0;
 }
+
+/* Shared hero entrance animation: slide-in + fade, run once on mount.
+   Applied to the left-side text block of each page hero (eyebrow, title,
+   description, actions/filters row) via modifier classes for stagger. */
+
+.hero-reveal {
+  animation: hero-reveal-in 1.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.hero-reveal--1 {
+  animation-delay: 0s;
+}
+
+.hero-reveal--2 {
+  animation-delay: 0.22s;
+}
+
+.hero-reveal--3 {
+  animation-delay: 0.44s;
+}
+
+.hero-reveal--4 {
+  animation-delay: 0.66s;
+}
+
+@keyframes hero-reveal-in {
+  from {
+    opacity: 0;
+    transform: translateX(-26px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-reveal {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

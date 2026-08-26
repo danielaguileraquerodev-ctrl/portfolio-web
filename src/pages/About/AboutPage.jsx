@@ -250,8 +250,12 @@ const strengthMetrics = {
 
 const copy = {
   es: {
-    eyebrow: "03 - Sobre mí",
-    title: "Construyo soluciones web con estructura, criterio visual y enfoque práctico.",
+    eyebrow: "Sobre mí",
+    title: (
+      <>
+        Aprendo, <span>ordeno</span> y cuido cada <span>detalle</span>.
+      </>
+    ),
     description:
       "Soy Daniel Aguilera Quero, desarrollador web formado en DAW. Mi perfil combina frontend, WordPress, bases de datos y herramientas orientadas a productividad, con una forma de trabajar centrada en la claridad, el orden y el detalle.",
     projectsCta: "Ver proyectos",
@@ -657,8 +661,12 @@ const copy = {
     ],
   },
   en: {
-    eyebrow: "03 - About",
-    title: "I design digital experiences that connect technology and purpose.",
+    eyebrow: "About me",
+    title: (
+      <>
+        I learn, <span>organize</span> and care for every <span>detail</span>.
+      </>
+    ),
     description:
       "I build elegant, functional and scalable web solutions, combining clean code with strategic design.",
     projectsCta: "View projects",
@@ -2056,11 +2064,11 @@ function AboutPage({ lang = "es" }) {
         <section className="about-hero">
           <div className="container about-hero__inner">
             <div className="about-hero__content">
-              <p className="about-page__eyebrow">{pageCopy.eyebrow}</p>
-              <h1 className="about-hero__title">{pageCopy.title}</h1>
-              <p className="about-hero__description">{pageCopy.description}</p>
+              <p className="about-page__eyebrow hero-reveal hero-reveal--1">{pageCopy.eyebrow}</p>
+              <h1 className="about-hero__title hero-reveal hero-reveal--2">{pageCopy.title}</h1>
+              <p className="about-hero__description hero-reveal hero-reveal--3">{pageCopy.description}</p>
 
-              <div className="about-hero__actions">
+              <div className="about-hero__actions hero-reveal hero-reveal--4">
                 <Link className="about-button about-button--primary" to={routes.projects[lang]}>
                   <span>{pageCopy.projectsCta}</span>
                   <span aria-hidden="true">-&gt;</span>

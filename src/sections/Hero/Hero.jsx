@@ -234,13 +234,13 @@ function Hero({ lang = "es" }) {
     <section className="hero section" id={copy.id}>
       <div
         className="hero__visual"
-        style={{ backgroundImage: `url(${heroBackground})` }}
+        style={{ "--hero-bg-image": `url(${heroBackground})` }}
       >
         <div className="container hero__grid">
           <div className="hero__content">
-            <p className="hero__eyebrow">{copy.eyebrow}</p>
+            <p className="hero__eyebrow hero-reveal hero-reveal--1">{copy.eyebrow}</p>
 
-            <h1 className="hero__title">
+            <h1 className="hero__title hero-reveal hero-reveal--2">
               {copy.title.first}
               <br />
               <span>{copy.title.second}</span>
@@ -249,9 +249,9 @@ function Hero({ lang = "es" }) {
               <span>{copy.title.thirdAccent}</span>
             </h1>
 
-            <p className="hero__description">{heroDescription}</p>
+            <p className="hero__description hero-reveal hero-reveal--3">{heroDescription}</p>
 
-            <div className="hero__actions" aria-label={copy.actionsAria}>
+            <div className="hero__actions hero-reveal hero-reveal--4" aria-label={copy.actionsAria}>
               <Link className="button button--primary" to={routes.projects[lang]}>
                 <span>{copy.projectsCta}</span>
                 <ArrowRightIcon className="button__icon" />

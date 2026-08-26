@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding: 0;
+  padding: 86px 0 0;
   border-bottom: none;
   overflow: hidden;
   background: var(--color-bg);
@@ -13,13 +13,35 @@
   position: relative;
   width: 100%;
   overflow: hidden;
-
   background-color: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* La foto de fondo vive en un ::before independiente del contenido
+   (en vez de background-image directo en .hero__visual) para poder
+   animarle un zoom lento sin escalar también el grid/texto de encima. */
+.hero__visual::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image: var(--hero-bg-image);
   background-size: 100% auto;
   background-position: center top;
   background-repeat: no-repeat;
+  transform: scale(1);
+  animation: heroKenBurns 16s ease-in-out infinite;
+}
 
-  border-bottom: 1px solid var(--color-border);
+@keyframes heroKenBurns {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.035);
+  }
 }
 /* .hero::after {
   content: "";
@@ -326,6 +348,30 @@
   border-left: 0;
   justify-self: start;
   align-self: center;
+
+  /* Offset de posicionamiento por breakpoint, aplicado vía custom
+     properties para no chocar con el transform de la animación de
+     entrada de abajo (ver hero-info-reveal-in). */
+  --hero-info-x: 0px;
+  --hero-info-y: 0px;
+  transform: translate(var(--hero-info-x), var(--hero-info-y));
+
+  /* Entrada desde la derecha, en sincronía con el final de la
+     secuencia de .hero__content: 4 elementos con stagger de 0.22s
+     (hero-reveal--4 arranca a 0.66s) + 1.6s de duración = 2.26s. */
+  animation: hero-info-reveal-in 1.6s cubic-bezier(0.16, 1, 0.3, 1) 2.26s both;
+}
+
+@keyframes hero-info-reveal-in {
+  from {
+    opacity: 0;
+    transform: translate(calc(var(--hero-info-x) + 26px), var(--hero-info-y));
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(var(--hero-info-x), var(--hero-info-y));
+  }
 }
 
 .hero__status {
@@ -345,6 +391,18 @@
   border-radius: 999px;
   background: var(--color-success);
   box-shadow: 0 0 0 7px rgba(168, 212, 106, 0.08);
+  animation: hero-status-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes hero-status-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 7px rgba(168, 212, 106, 0.08);
+  }
+
+  50% {
+    box-shadow: 0 0 0 10px rgba(168, 212, 106, 0.16);
+  }
 }
 
 .hero__info-list {
@@ -463,8 +521,8 @@
   filter: grayscale(1) brightness(0.72) contrast(1.1);
   transition:
     opacity 180ms ease,
-    filter 180ms ease,
-    transform 180ms ease;
+    filter 230ms ease,
+    transform 230ms ease;
 }
 
 .hero__tech-icon--stroke {
@@ -475,13 +533,14 @@
 
 .hero__tech-item:hover .hero__tech-icon {
   opacity: 1;
-  filter: grayscale(1) brightness(1.05) contrast(1.08);
-  transform: translateY(-1px);
+  filter: grayscale(0) brightness(1) contrast(1);
+  transform: translateY(-1px) scale(1.08);
 }
 
 .hero__tech-item:hover .hero__tech-icon--stroke {
   color: var(--color-text);
   filter: none;
+  transform: translateY(-1px) scale(1.08);
 }
 /* Desktop grande */
 @media (min-width: 1260px) {
@@ -549,13 +608,14 @@
     width: 390px;
     justify-self: end;
     align-self: center;
-    transform: translate(48px, 18px);
+    /* Offset vía custom properties (ver regla base .hero__info): un
+       transform: literal aquí quedaría anulado permanentemente en
+       cuanto termine la animación de entrada con fill: both. */
+    --hero-info-x: 80px;
+    --hero-info-y: 18px;
   }
   .hero__visual {
     min-height: 650px;
-    background-size: 100% auto;
-    background-position: center top;
-    background-repeat: no-repeat;
   }
   .hero__content {
   transform: translateY(42px);
@@ -577,7 +637,9 @@
     grid-column: 1 / -1;
     padding-top: 32px;
     border-top: 1px solid var(--color-border);
-    transform: none;
+    /* Sin offset horizontal: pasa a ocupar toda la fila, no aplica
+       el desplazamiento del layout de escritorio (--hero-info-x/-y
+       ya son 0px por defecto en la regla base). */
   }
 
   .hero__info-list {
@@ -685,5 +747,23 @@
 
   .hero__info-list {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+  .hero__info {
+    animation: none;
+    opacity: 1;
+    transform: translate(var(--hero-info-x), var(--hero-info-y));
+  }
+
+  .hero__status-dot {
+    animation: none;
+  }
+
+  .hero__visual::before {
+    animation: none;
+    transform: scale(1);
   }
 }

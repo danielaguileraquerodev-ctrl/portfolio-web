@@ -9,7 +9,7 @@
 
 .contact-hero {
   position: relative;
-  padding: 62px 0 31px;
+  padding: 86px 0 31px;
   overflow: hidden;
 }
 
@@ -43,12 +43,13 @@
   margin: 0 0 27px;
   color: var(--color-accent);
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 700;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
+.contact-hero__eyebrow::before,
 .contact-hero__eyebrow::after {
   content: "";
   width: 34px;
@@ -61,10 +62,10 @@
   margin: 0;
   color: var(--color-text);
   font-family: var(--font-serif, Georgia, "Times New Roman", serif);
-  font-size: clamp(2.95rem, 3.58vw, 3.85rem);
+  font-size: clamp(2.65rem, 3.05vw, 3.95rem);
   font-weight: 400;
-  line-height: 1.04;
-  letter-spacing: -0.044em;
+  line-height: 1.05;
+  letter-spacing: -0.045em;
 }
 
 .contact-hero__title-line {
@@ -81,8 +82,8 @@
   max-width: 650px;
   margin: 27px 0 0;
   color: var(--color-text-muted);
-  font-size: 1.02rem;
-  line-height: 1.72;
+  font-size: 1rem;
+  line-height: 1.75;
 }
 
 .contact-hero__actions {

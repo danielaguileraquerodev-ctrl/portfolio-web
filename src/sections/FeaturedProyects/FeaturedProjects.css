@@ -60,73 +60,100 @@
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.035), transparent 48%),
     rgba(255, 255, 255, 0.018);
+  transition: border-color 0.3s ease;
 }
 
-.featured-project::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 22% 18%, rgba(200, 137, 69, 0.11), transparent 30%),
-    linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.28));
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 220ms ease;
+/* El revelado ligado al scroll (opacity/transform) se calcula en JS frame a
+   frame según la posición real de la tarjeta en el viewport — ver
+   FeaturedProjects.jsx (computeCardReveal). No hay clase ni transición CSS
+   para ello: una transición aquí introduciría retraso respecto al scroll
+   real, justo lo contrario de "atado a la posición de scroll". */
+
+.featured-project:hover {
+  border-color: var(--color-accent);
 }
 
-.featured-project:hover::before {
-  opacity: 1;
-}
-
+/* Preview: misma firma que .projects-page__preview-window (barra de
+   puntos + grid punteado + "PREVIEW"), lista para recibir una captura real
+   más adelante sin rehacer el CSS. */
 .featured-project__media {
   position: relative;
   min-height: 260px;
+  padding: 20px;
   overflow: hidden;
   border-right: 1px solid var(--color-border);
   background:
-    linear-gradient(135deg, rgba(200, 137, 69, 0.1), transparent 34%),
-    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.08), transparent 36%),
-    rgba(255, 255, 255, 0.025);
+    linear-gradient(rgba(241, 237, 229, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(241, 237, 229, 0.035) 1px, transparent 1px),
+    rgba(255, 255, 255, 0.014);
+  background-size: 22px 22px;
 }
 
-.featured-project__media::before {
-  content: "";
-  position: absolute;
-  inset: 20px;
-  border: 1px solid rgba(200, 137, 69, 0.18);
+.featured-project__preview-window {
+  position: relative;
+  height: 100%;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(241, 237, 229, 0.08);
+  background: rgba(15, 15, 13, 0.52);
+  overflow: hidden;
 }
 
-.featured-project__media::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.34) 100%),
-    repeating-linear-gradient(
-      0deg,
-      rgba(255, 255, 255, 0.018) 0,
-      rgba(255, 255, 255, 0.018) 1px,
-      transparent 1px,
-      transparent 7px
-    );
-  opacity: 0.48;
+.featured-project__preview-topbar {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 13px;
+  border-bottom: 1px solid rgba(241, 237, 229, 0.08);
 }
 
-.featured-project__media-mark {
-  position: absolute;
-  left: 28px;
-  top: 24px;
-  z-index: 1;
-  width: 38px;
-  height: 38px;
+.featured-project__preview-topbar span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(241, 237, 229, 0.22);
+}
+
+.featured-project__preview-content {
+  flex: 1;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(200, 137, 69, 0.42);
-  color: var(--color-accent);
+  min-height: 180px;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(200, 137, 69, 0.075), transparent 36%),
+    linear-gradient(rgba(200, 137, 69, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200, 137, 69, 0.035) 1px, transparent 1px);
+  background-size: 100% 100%, 28px 28px, 28px 28px;
+}
+
+.featured-project__preview-label {
+  color: rgba(241, 237, 229, 0.26);
   font-family: var(--font-mono);
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.featured-project__sweep {
+  position: absolute;
+  inset: 0;
+  width: 55%;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgba(200, 137, 69, 0.22),
+    transparent
+  );
+  transform: translateX(-150%);
+  transition: transform 1.1s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+.featured-project:hover .featured-project__sweep {
+  transform: translateX(280%);
 }
 
 .featured-project__content {
@@ -158,6 +185,14 @@
   font-weight: 400;
   line-height: 1.08;
   letter-spacing: -0.03em;
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.featured-project:hover h3 {
+  transform: translateX(8px);
+  color: var(--color-accent);
 }
 
 .featured-project__description {
@@ -271,4 +306,23 @@
     align-items: start;
     flex-direction: column;
   }
+}
+
+/* Movimiento reducido: el efecto ligado al scroll ni se calcula (ver
+   FeaturedProjects.jsx) — las tarjetas se montan sin ningún estilo inline,
+   así que ya están en su estado final visible por defecto. Solo queda
+   apagar el shimmer del hover, que sigue siendo una animación. */
+@media (prefers-reduced-motion: reduce) {
+  .featured-project__sweep {
+    transition: none;
+  }
+}
+
+.featured-project__preview-image {
+  width: 100%;
+  height: 100%;
+  min-height: 180px;
+  display: block;
+  object-fit: cover;
+  object-position: top center;
 }

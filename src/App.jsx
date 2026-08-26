@@ -7,6 +7,7 @@ import {
 } from "react-router-dom";
 import HomePage from "./pages/Home/HomePage";
 import ProjectsPage from "./pages/Projects/ProjectsPage";
+import ProjectDetailPage from "./pages/ProjectDetail/ProjectDetailPage";
 import ContactPage from "./pages/Contact/ContactPage";
 import AboutPage from "./pages/About/AboutPage";
 import LegalNoticePage from "./pages/Legal/LegalNoticePage";
@@ -32,6 +33,7 @@ function App() {
       <Routes>
         <Route path={routes.home.es} element={<HomePage lang="es" />} />
         <Route path={routes.projects.es} element={<ProjectsPage lang="es" />} />
+        <Route path={routes.projectDetail.es} element={<ProjectDetailPage lang="es" />} />
         <Route path={routes.about.es} element={<AboutPage lang="es" />} />
         <Route path={routes.contact.es} element={<ContactPage lang="es" />} />
         <Route path={routes.privacy.es} element={<PrivacyPolicyPage lang="es" />} />
@@ -41,6 +43,7 @@ function App() {
 
         <Route path={routes.home.en} element={<HomePage lang="en" />} />
         <Route path={routes.projects.en} element={<ProjectsPage lang="en" />} />
+        <Route path={routes.projectDetail.en} element={<ProjectDetailPage lang="en" />} />
         <Route path={routes.about.en} element={<AboutPage lang="en" />} />
         <Route path={routes.contact.en} element={<ContactPage lang="en" />} />
         <Route path={routes.privacy.en} element={<PrivacyPolicyPage lang="en" />} />

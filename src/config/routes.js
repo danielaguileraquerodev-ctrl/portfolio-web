@@ -7,6 +7,10 @@ export const routes = {
     es: "/proyectos",
     en: "/en/projects",
   },
+  projectDetail: {
+    es: "/proyectos/:projectId",
+    en: "/en/projects/:projectId",
+  },
   about: {
     es: "/sobre-mi",
     en: "/en/about",
@@ -44,6 +48,12 @@ export function getLanguageFromPath(pathname) {
   return pathname.startsWith("/en") ? "en" : "es";
 }
 
+// Builds the URL for a project's detail page in a given language, filling in
+// the ":projectId" placeholder from routes.projectDetail.
+export function buildProjectDetailPath(lang, projectId) {
+  return routes.projectDetail[lang].replace(":projectId", projectId);
+}
+
 export function getCurrentSection(pathname) {
   if (pathname === routes.home.es || pathname === routes.home.en) {
     return "home";
@@ -51,6 +61,13 @@ export function getCurrentSection(pathname) {
 
   if (pathname === routes.projects.es || pathname === routes.projects.en) {
     return "projects";
+  }
+
+  if (
+    pathname.startsWith(`${routes.projects.es}/`) ||
+    pathname.startsWith(`${routes.projects.en}/`)
+  ) {
+    return "projectDetail";
   }
 
   if (pathname === routes.about.es || pathname === routes.about.en) {

@@ -200,9 +200,9 @@ function ContactPage({ lang = "es" }) {
       <section className="contact-hero" id={pageCopy.heroId}>
         <div className="container contact-hero__inner">
           <div className="contact-hero__content">
-            <p className="contact-hero__eyebrow">{pageCopy.eyebrow}</p>
+            <p className="contact-hero__eyebrow hero-reveal hero-reveal--1">{pageCopy.eyebrow}</p>
 
-            <h1 className="contact-hero__title">
+            <h1 className="contact-hero__title hero-reveal hero-reveal--2">
               <span className="contact-hero__title-line">
                 {pageCopy.titleLineOne}
               </span>
@@ -211,11 +211,11 @@ function ContactPage({ lang = "es" }) {
               </span>
             </h1>
 
-            <p className="contact-hero__description">
+            <p className="contact-hero__description hero-reveal hero-reveal--3">
               {pageCopy.description}
             </p>
 
-            <div className="contact-hero__actions">
+            <div className="contact-hero__actions hero-reveal hero-reveal--4">
               <a
                 className="contact-hero__button contact-hero__button--primary"
                 href="mailto:hola@danielaguilera.dev"

@@ -1,5 +1,6 @@
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
+  buildProjectDetailPath,
   getCurrentSection,
   getLanguageFromPath,
   routes,
@@ -52,7 +53,12 @@ function Header() {
   const switchLanguage = (targetLang) => {
     if (targetLang === lang) return;
 
-    navigate(routes[section][targetLang]);
+    if (section === "projectDetail") {
+      const projectId = location.pathname.split("/").pop();
+      navigate(buildProjectDetailPath(targetLang, projectId));
+    } else {
+      navigate(routes[section][targetLang]);
+    }
 
     window.setTimeout(() => {
       window.scrollTo({
