@@ -169,9 +169,6 @@
   min-width: 318px;
   background: var(--color-accent);
   color: #120d08;
-  box-shadow:
-    0 14px 32px rgba(200, 137, 69, 0.13),
-    inset 0 1px 0 rgba(255, 235, 204, 0.26);
 }
 
 .contact-hero__button--secondary {
@@ -206,21 +203,6 @@
   height: 260px;
   display: grid;
   place-items: center;
-}
-
-.contact-circle__glow {
-  position: absolute;
-  inset: -22%;
-  z-index: 0;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle at center,
-    rgba(200, 137, 69, 0.26),
-    rgba(200, 137, 69, 0.08) 40%,
-    transparent 68%
-  );
-  pointer-events: none;
-  animation: contact-circle-breathe 4s ease-in-out infinite;
 }
 
 .contact-circle__mark {
@@ -281,7 +263,7 @@
 }
 
 .contact-circle__logo-shimmer {
-  transform: translateX(-160px);
+  transform: translateX(-100px);
   animation: contact-logo-shimmer-sweep 5s ease-in-out 3.1s infinite;
 }
 
@@ -311,19 +293,6 @@
   text-transform: uppercase;
 }
 
-@keyframes contact-circle-breathe {
-  0%,
-  100% {
-    opacity: 0.4;
-    transform: scale(1);
-  }
-
-  50% {
-    opacity: 0.62;
-    transform: scale(1.07);
-  }
-}
-
 @keyframes contact-logo-draw {
   to {
     stroke-dashoffset: 0;
@@ -350,24 +319,19 @@
 
 @keyframes contact-logo-shimmer-sweep {
   0% {
-    transform: translateX(-160px);
+    transform: translateX(-100px);
   }
 
   18% {
-    transform: translateX(340px);
+    transform: translateX(360px);
   }
 
   100% {
-    transform: translateX(340px);
+    transform: translateX(360px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .contact-circle__glow {
-    animation: none;
-    opacity: 0.5;
-  }
-
   .contact-circle__logo-stroke {
     display: none;
   }
@@ -462,6 +426,16 @@
   place-items: center;
   border: 1px solid rgba(200, 137, 69, 0.26);
   color: var(--color-accent);
+  transition:
+    border-color 200ms ease,
+    transform 200ms ease;
+}
+
+/* El hover del grupo (que ya cambia color/padding del enlace) alcanza
+   también a la cajita del icono. */
+.contact-info__group:hover .contact-info__icon {
+  border-color: var(--color-accent);
+  transform: scale(1.06);
 }
 
 .contact-info__icon svg {
@@ -544,6 +518,17 @@
   font-size: 1rem;
   font-weight: 700;
   line-height: 1;
+  transition:
+    border-color 200ms ease,
+    transform 200ms ease;
+}
+
+/* El hover del enlace de perfil (color/padding ya existentes) alcanza
+   también a la cajita del icono y desplaza la flecha, como el resto de
+   flechas del sitio. */
+.contact-info__profile-link:hover .contact-info__profile-icon {
+  border-color: var(--color-accent);
+  transform: scale(1.06);
 }
 
 .contact-info__profile-icon svg {
@@ -572,6 +557,11 @@
 .contact-info__profile-arrow {
   color: var(--color-text-muted);
   font-size: 1.2rem;
+  transition: transform 180ms ease;
+}
+
+.contact-info__profile-link:hover .contact-info__profile-arrow {
+  transform: translateX(3px);
 }
 
 .contact-info__intro {
@@ -596,6 +586,20 @@
   color: var(--color-text-muted);
   font-size: 0.96rem;
   line-height: 1.45;
+  /* Cascada de entrada, disparo único: se encadena tras el revelado de su
+     propia columna (ver ContactPage.jsx). Cada <li> lleva su --reveal-index
+     para escalonar el delay. */
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
+  transition-delay: calc(var(--reveal-index, 0) * 70ms);
+}
+
+.contact-info__checklist--revealed li {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .contact-info__checklist li::before {
@@ -612,6 +616,52 @@
   color: var(--color-accent);
   font-size: 0.68rem;
   line-height: 1;
+}
+
+/* Entrada del panel con máscara, escalonada por columna — disparo único
+   vía IntersectionObserver sobre .contact-info__panel (ver ContactPage.jsx).
+   El clip-path vive en cada .contact-info__column; el panel observado nunca
+   se recorta para no romper la detección de intersección en Chromium. */
+.contact-info__panel .contact-info__column {
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.contact-info__panel--revealed .contact-info__column {
+  clip-path: inset(0 0% 0 0);
+}
+
+.contact-info__panel .contact-info__column:nth-child(2) {
+  transition-delay: 150ms;
+}
+
+.contact-info__panel .contact-info__column:nth-child(3) {
+  transition-delay: 300ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contact-info__panel .contact-info__column {
+    clip-path: inset(0 0% 0 0);
+    transition: none;
+  }
+
+  .contact-info__checklist li {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .contact-info__icon,
+  .contact-info__profile-icon,
+  .contact-info__profile-arrow {
+    transition: none;
+  }
+
+  .contact-info__group:hover .contact-info__icon,
+  .contact-info__profile-link:hover .contact-info__profile-icon,
+  .contact-info__profile-link:hover .contact-info__profile-arrow {
+    transform: none;
+  }
 }
 
 /* RESPONSIVE */

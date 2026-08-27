@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Mail, MapPin } from "lucide-react";
 import daLogoSinCaja from "../../assets/logo/daLogoSinCaja.png";
@@ -84,75 +85,114 @@ const copy = {
 
 function ContactCTA({ lang = "es" }) {
   const sectionCopy = copy[lang] ?? copy.es;
+  const panelRef = useRef(null);
+  const [revealed, setRevealed] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+
+  // Entrada con máscara, disparo único — mismo patrón ya usado en
+  // FeaturedProjects/ProfileSystem. El clip-path vive en el
+  // .contact-cta__reveal-mask interno, NUNCA en .contact-cta__panel (el
+  // elemento observado): un elemento recortado a ancho 0 hace que
+  // IntersectionObserver lo reporte como "sin intersección" para siempre,
+  // aunque esté dentro del viewport.
+  useEffect(() => {
+    if (revealed) return undefined;
+
+    const node = panelRef.current;
+    if (!node) return undefined;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setRevealed(true);
+          observer.unobserve(entry.target);
+        }
+      },
+      { threshold: 0.2 }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [revealed]);
 
   return (
     <section className="contact-cta section" id={sectionCopy.id}>
       <div className="container contact-cta__container">
-        <div className="contact-cta__panel">
-          <div className="contact-cta__block contact-cta__intro">
-            <p className="contact-cta__eyebrow">{sectionCopy.eyebrow}</p>
+        <div
+          className={`contact-cta__panel${
+            revealed ? " contact-cta__panel--revealed" : ""
+          }`}
+          ref={panelRef}
+        >
+          <div className="contact-cta__reveal-mask">
+            <div className="contact-cta__block contact-cta__intro">
+              <p className="contact-cta__eyebrow">{sectionCopy.eyebrow}</p>
 
-            <h3 className="contact-cta__title">{sectionCopy.title}</h3>
+              <h3 className="contact-cta__title">{sectionCopy.title}</h3>
 
-            <p className="contact-cta__description">
-              {sectionCopy.description}
-            </p>
-          </div>
-
-          <div className="contact-cta__block contact-cta__action">
-            <Link
-              className="contact-cta__button"
-              to={routes.contact[lang]}
-            >
-              <span>{sectionCopy.button}</span>
-              <ArrowRightIcon className="contact-cta__arrow" />
-            </Link>
-
-            <p className="contact-cta__status">
-              <span aria-hidden="true" />
-              {sectionCopy.status}
-            </p>
-          </div>
-
-          <div className="contact-cta__block contact-cta__info">
-            <div className="contact-cta__data">
-              <div className="contact-cta__data-item">
-                <Mail className="contact-cta__icon" aria-hidden="true" />
-                <div>
-                  <span>Email</span>
-                  <a href="mailto:hola@danielaguilera.dev">
-                    hola@danielaguilera.dev
-                  </a>
-                </div>
-              </div>
-
-              <div className="contact-cta__data-item">
-                <MapPin className="contact-cta__icon" aria-hidden="true" />
-                <div>
-                  <span>{sectionCopy.locationLabel}</span>
-                  <p>{sectionCopy.location}</p>
-                </div>
-              </div>
+              <p className="contact-cta__description">
+                {sectionCopy.description}
+              </p>
             </div>
 
-            <div className="contact-cta__socials">
-              <a
-                href="https://www.linkedin.com/in/danielaguileraquero/"
-                target="_blank"
-                rel="noreferrer"
-                aria-label="LinkedIn"
+            <div className="contact-cta__block contact-cta__action">
+              <Link
+                className="contact-cta__button"
+                to={routes.contact[lang]}
               >
-                <LinkedinIcon className="contact-cta__social-icon" />
-              </a>
+                <span>{sectionCopy.button}</span>
+                <ArrowRightIcon className="contact-cta__arrow" />
+              </Link>
 
-              <a
-                href="https://github.com/danielaguileraquero"
-                target="_blank"
-                rel="noreferrer"
-                aria-label="GitHub"
-              >
-                <GithubIcon className="contact-cta__social-icon" />
-              </a>
+              <p className="contact-cta__status">
+                <span aria-hidden="true" />
+                {sectionCopy.status}
+              </p>
+            </div>
+
+            <div className="contact-cta__block contact-cta__info">
+              <div className="contact-cta__data">
+                <div className="contact-cta__data-item">
+                  <Mail className="contact-cta__icon" aria-hidden="true" />
+                  <div>
+                    <span>Email</span>
+                    <a href="mailto:hola@danielaguilera.dev">
+                      hola@danielaguilera.dev
+                    </a>
+                  </div>
+                </div>
+
+                <div className="contact-cta__data-item">
+                  <MapPin className="contact-cta__icon" aria-hidden="true" />
+                  <div>
+                    <span>{sectionCopy.locationLabel}</span>
+                    <p>{sectionCopy.location}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="contact-cta__socials">
+                <a
+                  href="https://www.linkedin.com/in/danielaguileraquero/"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="LinkedIn"
+                >
+                  <LinkedinIcon className="contact-cta__social-icon" />
+                </a>
+
+                <a
+                  href="https://github.com/danielaguileraquero"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="GitHub"
+                >
+                  <GithubIcon className="contact-cta__social-icon" />
+                </a>
+              </div>
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import Header from "../../components/Header/Header";
 import Footer from "../../components/Footer/Footer";
@@ -13,6 +13,7 @@ const CODE_MESSAGE_DELAY = 300;
 const CODE_RESULTS_HOLD = 4000;
 const CODE_SCAN_DURATION = 4600;
 const CODE_DOT_INTERVAL = 450;
+const FILTER_PULSE_DURATION = 200; // debe coincidir con la duración de la animación CSS
 
 const filters = {
   es: [
@@ -306,6 +307,76 @@ function ProjectsPage({ lang = "es" }) {
   const filterList = filters[lang] ?? filters.es;
   const projectList = projects[lang] ?? projects.es;
   const [activeFilter, setActiveFilter] = useState("all");
+  const prefersReducedMotion = usePrefersReducedMotion();
+
+  // Entrada con máscara de las tarjetas, disparo único por tarjeta — igual
+  // patrón que en FeaturedProjects/ProfileSystem. `revealedIds` vive a
+  // nivel de página (no por tarjeta) y se indexa por id de proyecto, no
+  // por posición en el DOM: al cambiar de filtro, las tarjetas se
+  // desmontan y remontan (cambia el array que se mapea), así que una
+  // tarjeta que ya se reveló una vez debe seguir "revelada" si reaparece,
+  // en vez de volver a animarse cada vez.
+  const [revealedIds, setRevealedIds] = useState(() => new Set());
+  const cardRefs = useRef(new Map());
+
+  // Un único callback ref estable (no una fábrica curried por id) — lee el
+  // id del propio `data-card-id` del elemento en vez de cerrar sobre una
+  // variable capturada en el render.
+  const registerCardRef = (el) => {
+    if (!el) return;
+    cardRefs.current.set(el.dataset.cardId, el);
+  };
+
+  useEffect(() => {
+    if (prefersReducedMotion) return undefined;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          observer.unobserve(entry.target);
+          const id = entry.target.dataset.cardId;
+
+          setRevealedIds((prev) => {
+            if (prev.has(id)) return prev;
+            const next = new Set(prev);
+            next.add(id);
+            return next;
+          });
+        });
+      },
+      { threshold: 0.15 }
+    );
+
+    cardRefs.current.forEach((node) => {
+      if (node) observer.observe(node);
+    });
+
+    return () => observer.disconnect();
+  }, [prefersReducedMotion, activeFilter]);
+
+  // Pulso táctil breve al hacer click en un filtro — puramente visual, vía
+  // una clase temporal (ver .projects-page__filter--pulse en el CSS), sin
+  // ninguna relación con qué filtro está activo.
+  const [pulsingFilterId, setPulsingFilterId] = useState(null);
+  const pulseTimeoutRef = useRef(null);
+
+  useEffect(
+    () => () => {
+      if (pulseTimeoutRef.current) window.clearTimeout(pulseTimeoutRef.current);
+    },
+    []
+  );
+
+  const handleFilterClick = (id) => {
+    setActiveFilter(id);
+
+    if (pulseTimeoutRef.current) window.clearTimeout(pulseTimeoutRef.current);
+    setPulsingFilterId(id);
+    pulseTimeoutRef.current = window.setTimeout(() => {
+      setPulsingFilterId(null);
+    }, FILTER_PULSE_DURATION);
+  };
 
   const visibleProjects = useMemo(() => {
     if (activeFilter === "all") {
@@ -358,12 +429,16 @@ function ProjectsPage({ lang = "es" }) {
                 <button
                   key={filter.id}
                   type="button"
-                  className={
-                    activeFilter === filter.id
-                      ? "projects-page__filter projects-page__filter--active"
-                      : "projects-page__filter"
-                  }
-                  onClick={() => setActiveFilter(filter.id)}
+                  className={[
+                    "projects-page__filter",
+                    activeFilter === filter.id &&
+                      "projects-page__filter--active",
+                    pulsingFilterId === filter.id &&
+                      "projects-page__filter--pulse",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onClick={() => handleFilterClick(filter.id)}
                 >
                   {filter.label}
                 </button>
@@ -379,74 +454,86 @@ function ProjectsPage({ lang = "es" }) {
         <div className="container projects-page__list-inner">
           {featuredProject && (
             <article
-              className="projects-page__card projects-page__card--featured"
+              className={`projects-page__card projects-page__card--featured${
+                revealedIds.has(featuredProject.id)
+                  ? " projects-page__card--revealed"
+                  : ""
+              }`}
               key={featuredProject.id}
+              ref={registerCardRef}
+              data-card-id={featuredProject.id}
+              style={{ "--reveal-order": 0 }}
             >
-              <div className="projects-page__card-preview">
-                <div className="projects-page__preview-window">
-                  <div className="projects-page__preview-topbar">
-                    <span />
-                    <span />
-                    <span />
+              <div className="projects-page__reveal-mask">
+                <div className="projects-page__card-preview">
+                  <div className="projects-page__preview-window">
+                    <div className="projects-page__preview-topbar">
+                      <span />
+                      <span />
+                      <span />
+                    </div>
+
+                    <div className="projects-page__preview-content">
+                      {featuredProject.previewImage ? (
+                        <img
+                          className="projects-page__preview-image"
+                          src={featuredProject.previewImage}
+                          alt={`Preview de ${featuredProject.title}`}
+                        />
+                      ) : (
+                        <span className="projects-page__preview-label">
+                          {copy.preview}
+                        </span>
+                      )}
+                    </div>
+
+                    <span
+                      className="projects-page__card-sweep"
+                      aria-hidden="true"
+                    />
                   </div>
-
-                  <div className="projects-page__preview-content">
-                    {featuredProject.previewImage ? (
-                      <img
-                        className="projects-page__preview-image"
-                        src={featuredProject.previewImage}
-                        alt={`Preview de ${featuredProject.title}`}
-                      />
-                    ) : (
-                      <span className="projects-page__preview-label">
-                        {copy.preview}
-                      </span>
-                    )}
-                  </div>
-
-                  <span className="projects-page__card-sweep" aria-hidden="true" />
-                </div>
-              </div>
-
-              <div className="projects-page__card-body">
-                <p className="projects-page__card-eyebrow">
-                  {featuredProject.number} / {featuredProject.type}
-                </p>
-
-                <h2 className="projects-page__card-title">
-                  {featuredProject.title}
-                </h2>
-
-                <p className="projects-page__card-description">
-                  {featuredProject.description}
-                </p>
-
-                <p className="projects-page__card-value">
-                  {featuredProject.value}
-                </p>
-
-                <div
-                  className="projects-page__card-tags"
-                  aria-label={copy.stackAria}
-                >
-                  {featuredProject.stack.map((tag) => (
-                    <span key={tag}>{tag}</span>
-                  ))}
                 </div>
 
-                <div className="projects-page__card-footer">
-                  <p className="projects-page__card-status">
-                    <span aria-hidden="true" />
-                    {featuredProject.status}
+                <div className="projects-page__card-body">
+                  <p className="projects-page__card-eyebrow">
+                    {featuredProject.number} / {featuredProject.type}
                   </p>
 
-                  <Link
-                    to={buildProjectDetailPath(lang, featuredProject.id)}
-                    className="projects-page__card-link"
+                  <h2 className="projects-page__card-title">
+                    {featuredProject.title}
+                  </h2>
+
+                  <p className="projects-page__card-description">
+                    {featuredProject.description}
+                  </p>
+
+                  <p className="projects-page__card-value">
+                    {featuredProject.value}
+                  </p>
+
+                  <div
+                    className="projects-page__card-tags"
+                    aria-label={copy.stackAria}
                   >
-                    {copy.caseStudy}
-                    <span aria-hidden="true">-&gt;</span>
-                  </Link>
+                    {featuredProject.stack.map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                  </div>
+
+                  <div className="projects-page__card-footer">
+                    <p className="projects-page__card-status">
+                      <span aria-hidden="true" />
+                      {featuredProject.status}
+                    </p>
+
+                    <Link
+                      to={buildProjectDetailPath(lang, featuredProject.id)}
+                      className="projects-page__card-link"
+                    >
+                      {copy.caseStudy}
+                      <span aria-hidden="true">-&gt;</span>
+                    </Link>
+                  </div>
                 </div>
               </div>
             </article>
@@ -454,68 +541,85 @@ function ProjectsPage({ lang = "es" }) {
 
           {secondaryProjects.length > 0 && (
             <div className="projects-page__grid">
-              {secondaryProjects.map((project) => (
-                <article className="projects-page__card" key={project.id}>
-                  <div className="projects-page__card-body">
-                    <p className="projects-page__card-eyebrow">
-                      {project.number} / {project.type}
-                    </p>
+              {secondaryProjects.map((project, index) => (
+                <article
+                  className={`projects-page__card${
+                    revealedIds.has(project.id)
+                      ? " projects-page__card--revealed"
+                      : ""
+                  }`}
+                  key={project.id}
+                  ref={registerCardRef}
+                  data-card-id={project.id}
+                  style={{
+                    "--reveal-order": featuredProject ? index + 1 : index,
+                  }}
+                >
+                  <div className="projects-page__reveal-mask">
+                    <div className="projects-page__card-body">
+                      <p className="projects-page__card-eyebrow">
+                        {project.number} / {project.type}
+                      </p>
 
-                    <h2 className="projects-page__card-title">
-                      {project.title}
-                    </h2>
+                      <h2 className="projects-page__card-title">
+                        {project.title}
+                      </h2>
 
-                    <p className="projects-page__card-description">
-                      {project.description}
-                    </p>
+                      <p className="projects-page__card-description">
+                        {project.description}
+                      </p>
 
-                    <div className="projects-page__card-preview projects-page__card-preview--compact">
-                      <div className="projects-page__preview-window">
-                        <div className="projects-page__preview-topbar">
-                          <span />
-                          <span />
-                          <span />
+                      <div className="projects-page__card-preview projects-page__card-preview--compact">
+                        <div className="projects-page__preview-window">
+                          <div className="projects-page__preview-topbar">
+                            <span />
+                            <span />
+                            <span />
+                          </div>
+
+                          <div className="projects-page__preview-content">
+                            {project.previewImage ? (
+                              <img
+                                className="projects-page__preview-image"
+                                src={project.previewImage}
+                                alt={`Preview de ${project.title}`}
+                              />
+                            ) : (
+                              <span className="projects-page__preview-label">
+                                {copy.preview}
+                              </span>
+                            )}
+                          </div>
+
+                          <span
+                            className="projects-page__card-sweep"
+                            aria-hidden="true"
+                          />
                         </div>
-
-                        <div className="projects-page__preview-content">
-                          {project.previewImage ? (
-                            <img
-                              className="projects-page__preview-image"
-                              src={project.previewImage}
-                              alt={`Preview de ${project.title}`}
-                            />
-                          ) : (
-                            <span className="projects-page__preview-label">
-                              {copy.preview}
-                            </span>
-                          )}
-                        </div>
-
-                        <span className="projects-page__card-sweep" aria-hidden="true" />
                       </div>
-                    </div>
 
-                    <p className="projects-page__card-value">
-                      {project.value}
-                    </p>
+                      <p className="projects-page__card-value">
+                        {project.value}
+                      </p>
 
-                    <div
-                      className="projects-page__card-tags"
-                      aria-label={copy.stackAria}
-                    >
-                      {project.stack.map((tag) => (
-                        <span key={tag}>{tag}</span>
-                      ))}
-                    </div>
-
-                    <div className="projects-page__card-footer">
-                      <Link
-                        to={buildProjectDetailPath(lang, project.id)}
-                        className="projects-page__card-link"
+                      <div
+                        className="projects-page__card-tags"
+                        aria-label={copy.stackAria}
                       >
-                        {copy.viewProject}
-                        <span aria-hidden="true">-&gt;</span>
-                      </Link>
+                        {project.stack.map((tag) => (
+                          <span key={tag}>{tag}</span>
+                        ))}
+                      </div>
+
+                      <div className="projects-page__card-footer">
+                        <Link
+                          to={buildProjectDetailPath(lang, project.id)}
+                          className="projects-page__card-link"
+                        >
+                          {copy.viewProject}
+                          <span aria-hidden="true">-&gt;</span>
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 </article>

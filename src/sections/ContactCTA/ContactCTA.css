@@ -9,10 +9,7 @@
   gap: 38px;
 }
 .contact-cta__panel {
-  display: grid;
-  grid-template-columns: 1.15fr 0.76fr 0.9fr;
-  align-items: stretch;
-  min-height: 142px;
+  position: relative;
   border: 1px solid var(--color-border);
   border-radius: 6px;
   background:
@@ -20,6 +17,25 @@
     linear-gradient(180deg, rgba(255, 255, 255, 0.022), rgba(255, 255, 255, 0.004)),
     rgba(24, 24, 22, 0.38);
   overflow: hidden;
+}
+
+/* Entrada con máscara, disparo único — mismo patrón que el resto del
+   sitio (ver FeaturedProjects/ProfileSystem). El clip-path vive en este
+   wrapper interno y NUNCA en .contact-cta__panel (el elemento observado
+   por IntersectionObserver en ContactCTA.jsx): un elemento recortado a
+   ancho 0 hace que Chromium lo reporte como "sin intersección" para
+   siempre, aunque esté dentro del viewport. */
+.contact-cta__reveal-mask {
+  display: grid;
+  grid-template-columns: 1.15fr 0.76fr 0.9fr;
+  align-items: stretch;
+  min-height: 142px;
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.contact-cta__panel--revealed .contact-cta__reveal-mask {
+  clip-path: inset(0 0% 0 0);
 }
 
 .contact-cta__block {
@@ -101,11 +117,26 @@
     transform 180ms ease,
     border-color 180ms ease,
     filter 180ms ease;
+  /* Glow ambiental muy sutil, en bucle infinito — independiente de
+     `transition` (que no incluye box-shadow), así que no interfiere con
+     el hover de arriba/abajo. */
+  animation: contact-cta-button-glow 3.2s ease-in-out infinite;
 }
 
 .contact-cta__button:hover {
   transform: translateY(-2px);
   filter: brightness(1.06);
+}
+
+@keyframes contact-cta-button-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 14px 0 rgba(200, 137, 69, 0.16);
+  }
+
+  50% {
+    box-shadow: 0 0 26px 3px rgba(200, 137, 69, 0.3);
+  }
 }
 
 .contact-cta__arrow {
@@ -138,6 +169,25 @@
   border-radius: 999px;
   background: var(--color-accent);
   box-shadow: 0 0 16px rgba(200, 137, 69, 0.32);
+  animation: contact-cta-status-pulse 2.2s ease-in-out infinite;
+}
+
+/* Mismo pulso de "respiración" que .hero__status-dot en Hero.css (mismo
+   @keyframes shape, misma duración 2.2s, mismo ease-in-out) — duplicado
+   aquí en vez de compartido entre archivos para mantener cada componente
+   autocontenido, y recoloreado a rgba(200, 137, 69, ...) (el mismo trío
+   rgb que ya usa var(--color-accent) en el resto de este archivo) en vez
+   del verde rgba(168, 212, 106, ...) de Hero, porque este punto usa el
+   acento ámbar, no --color-success — un halo verde no encajaría aquí. */
+@keyframes contact-cta-status-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 16px rgba(200, 137, 69, 0.32);
+  }
+
+  50% {
+    box-shadow: 0 0 22px rgba(200, 137, 69, 0.5);
+  }
 }
 
 .contact-cta__info {
@@ -163,8 +213,13 @@
 .contact-cta__icon {
   width: 20px;
   height: 20px;
-  color: var(--color-accent);
+  color: var(--color-text-muted);
   stroke-width: 1.55;
+  transition: color 200ms ease;
+}
+
+.contact-cta__data-item:hover .contact-cta__icon {
+  color: var(--color-accent);
 }
 
 .contact-cta__data-item span {
@@ -212,7 +267,7 @@
 
 .contact-cta__socials a:hover {
   transform: translateY(-2px);
-  border-color: rgba(200, 137, 69, 0.8);
+  border-color: var(--color-accent);
   background: rgba(200, 137, 69, 0.08);
   color: var(--color-text);
 }
@@ -267,7 +322,7 @@
 }
 
 @media (max-width: 1100px) {
-  .contact-cta__panel {
+  .contact-cta__reveal-mask {
     grid-template-columns: 1fr;
   }
 
@@ -338,4 +393,23 @@
   max-height: 52px;
 }
 
+}
+
+/* Movimiento reducido: ni la entrada del panel, ni el pulso del punto de
+   estado, ni el glow del botón se calculan/disparan — todo queda
+   directamente en su estado final visible, sin bucle ni transición. */
+@media (prefers-reduced-motion: reduce) {
+  .contact-cta__reveal-mask {
+    clip-path: inset(0 0% 0 0);
+    transition: none;
+  }
+
+  .contact-cta__status span {
+    animation: none;
+  }
+
+  .contact-cta__button {
+    animation: none;
+    box-shadow: none;
+  }
 }

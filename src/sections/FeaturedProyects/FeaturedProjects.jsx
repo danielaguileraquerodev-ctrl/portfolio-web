@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { routes, buildProjectDetailPath } from "../../config/routes";
 import { projects } from "../../data/projects";
@@ -33,44 +33,20 @@ const copy = {
   },
 };
 
-// --- Revelado ligado al scroll (continuo, en ambas direcciones) ---
-//
-// Cada tarjeta tiene un progreso con signo en [-1, 1]:
-//   -1  completamente oculta, aún no ha entrado por abajo
-//    0  totalmente asentada (opaca, sin desplazamiento)
-//   +1  completamente oculta, ya ha salido por arriba
-//
-// El progreso se deriva directamente de getBoundingClientRect() en cada
-// frame de scroll, así que es simétrico: subir o bajar produce exactamente
-// el camino inverso, no hay "ya se activó una vez".
-const REVEAL_SPAN_FRACTION = 0.5; // fracción de la altura del viewport que dura la transición
-const REVEAL_ENTER_OFFSET_PX = 24; // translateY al entrar (por abajo)
-const REVEAL_EXIT_OFFSET_PX = -16; // translateY al salir (por arriba)
-const REVEAL_STAGGER_PX = 50; // retraso (en "px de scroll virtuales") de la 2ª tarjeta
+// Desplazamiento máximo (px) del parallax de la preview — ver el efecto 2
+// más abajo. Nada que ver con el revelado de entrada (efecto 1): son dos
+// sistemas independientes sobre partes distintas del DOM.
+const PREVIEW_PARALLAX_MAX_PX = 12;
 
 function clamp01(value) {
   return Math.min(1, Math.max(0, value));
 }
 
-function computeCardReveal(rect, viewportHeight, staggerPx) {
-  const span = viewportHeight * REVEAL_SPAN_FRACTION;
-  const top = rect.top + staggerPx;
-  const bottom = rect.bottom + staggerPx;
-
-  // 0 -> 1 según la tarjeta entra desde abajo
-  const enterProgress = clamp01((viewportHeight - top) / span);
-  // 0 -> 1 según la tarjeta sale por arriba
-  const exitProgress = clamp01((span - bottom) / span);
-  // Combinado: -1 (oculta abajo) .. 0 (asentada) .. 1 (oculta arriba)
-  const progress = exitProgress - (1 - enterProgress);
-
-  if (progress <= 0) {
-    const t = 1 + progress; // 0 -> 1
-    return { opacity: t, translateY: REVEAL_ENTER_OFFSET_PX * (1 - t) };
-  }
-
-  const t = progress; // 0 -> 1
-  return { opacity: 1 - t, translateY: REVEAL_EXIT_OFFSET_PX * t };
+function prefersReducedMotion() {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
 }
 
 function ArrowRightIcon({ className }) {
@@ -101,66 +77,105 @@ function FeaturedProjects({ lang = "es" }) {
   const projectList = getFeaturedProjects(lang);
   const gridRef = useRef(null);
   const cardRefs = useRef([]);
-  // translateY aplicado a cada tarjeta en el frame anterior: getBoundingClientRect()
-  // ya incluye nuestro propio transform, así que hay que restarlo antes de
-  // recalcular o el resultado se retroalimentaría frame a frame.
-  const prevTranslateYRef = useRef([]);
-  const [reducedMotion, setReducedMotion] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  const previewRefs = useRef([]);
+
+  const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
+  // Una entrada por tarjeta; una vez en `true` no vuelve a `false` nunca —
+  // no hay ningún camino de vuelta a "oculta" en este componente.
+  const [revealed, setRevealed] = useState(() =>
+    projectList.map(() => prefersReducedMotion())
   );
 
-  useLayoutEffect(() => {
+  // --- Efecto 1: entrada con máscara, disparo único, por tarjeta ---
+  //
+  // IntersectionObserver simple: en cuanto una tarjeta cruza el threshold
+  // por primera vez, se marca como revelada para siempre y se deja de
+  // observar. El propio CSS (.featured-project--revealed) hace la
+  // transición de clip-path; aquí no hay scroll listener ni rAF.
+  useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const handleMotionChange = (event) => setReducedMotion(event.matches);
+    const handleMotionChange = (event) => {
+      setReducedMotion(event.matches);
+      if (event.matches) {
+        setRevealed((prev) => prev.map(() => true));
+      }
+    };
     query.addEventListener("change", handleMotionChange);
 
-    if (reducedMotion) {
+    if (query.matches) {
       return () => query.removeEventListener("change", handleMotionChange);
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+
+          observer.unobserve(entry.target);
+          const index = cardRefs.current.indexOf(entry.target);
+          if (index === -1) return;
+
+          setRevealed((prev) => {
+            if (prev[index]) return prev;
+            const next = [...prev];
+            next[index] = true;
+            return next;
+          });
+        });
+      },
+      { threshold: 0.2 }
+    );
+
+    cardRefs.current.forEach((card) => {
+      if (card) observer.observe(card);
+    });
+
+    return () => {
+      query.removeEventListener("change", handleMotionChange);
+      observer.disconnect();
+    };
+  }, []);
+
+  // --- Efecto 2: parallax continuo, solo en la preview interior ---
+  //
+  // Independiente del revelado de arriba: nunca toca opacity ni clip-path
+  // de la tarjeta, solo un translateY pequeño sobre el contenido de la
+  // preview. Se mide siempre sobre la tarjeta (que ya no lleva ningún
+  // transform propio), nunca sobre el elemento que se está desplazando.
+  useEffect(() => {
+    if (reducedMotion) {
+      previewRefs.current.forEach((el) => {
+        if (el) el.style.transform = "";
+      });
+      return undefined;
     }
 
     const gridNode = gridRef.current;
-    if (!gridNode) {
-      return () => query.removeEventListener("change", handleMotionChange);
-    }
+    if (!gridNode) return undefined;
 
     let ticking = false;
     let listening = false;
 
-    const applyReveal = () => {
+    const applyParallax = () => {
       ticking = false;
       const viewportHeight = window.innerHeight;
 
       cardRefs.current.forEach((card, index) => {
-        if (!card) return;
+        const previewEl = previewRefs.current[index];
+        if (!card || !previewEl) return;
 
-        // getBoundingClientRect() ya refleja el translateY que le aplicamos
-        // la vez anterior (o el translateY(24px) inicial del JSX) — hay que
-        // descontarlo para medir la posición real de layout, no la visual.
-        const prevOffset =
-          prevTranslateYRef.current[index] ?? REVEAL_ENTER_OFFSET_PX;
-        const rawRect = card.getBoundingClientRect();
-        const rect = {
-          top: rawRect.top - prevOffset,
-          bottom: rawRect.bottom - prevOffset,
-        };
-
-        const { opacity, translateY } = computeCardReveal(
-          rect,
-          viewportHeight,
-          index * REVEAL_STAGGER_PX
-        );
-        card.style.opacity = String(opacity);
-        card.style.transform = `translateY(${translateY}px)`;
-        prevTranslateYRef.current[index] = translateY;
+        const rect = card.getBoundingClientRect();
+        const totalTravel = viewportHeight + rect.height;
+        const progress = clamp01((viewportHeight - rect.top) / totalTravel);
+        const offset = (progress - 0.5) * 2 * PREVIEW_PARALLAX_MAX_PX;
+        previewEl.style.transform = `translateY(${offset.toFixed(2)}px)`;
       });
     };
 
     const requestTick = () => {
       if (ticking) return;
       ticking = true;
-      requestAnimationFrame(applyReveal);
+      requestAnimationFrame(applyParallax);
     };
 
     // El observer solo decide si merece la pena escuchar el scroll: cuando
@@ -180,17 +195,12 @@ function FeaturedProjects({ lang = "es" }) {
           window.removeEventListener("resize", requestTick);
         }
       },
-      {
-        threshold: [0, 0.15, 0.5, 0.85, 1],
-        rootMargin: `${Math.round(window.innerHeight * REVEAL_SPAN_FRACTION)}px 0px`,
-      }
+      { threshold: [0, 0.1, 0.5, 0.9, 1] }
     );
 
     observer.observe(gridNode);
-    applyReveal(); // estado correcto desde el primer frame, sin esperar scroll
 
     return () => {
-      query.removeEventListener("change", handleMotionChange);
       observer.disconnect();
       window.removeEventListener("scroll", requestTick);
       window.removeEventListener("resize", requestTick);
@@ -212,74 +222,90 @@ function FeaturedProjects({ lang = "es" }) {
         <div className="featured-projects__grid" ref={gridRef}>
           {projectList.map((project, index) => (
             <article
-              className="featured-project"
+              className={`featured-project${
+                revealed[index] ? " featured-project--revealed" : ""
+              }`}
               key={project.id}
               ref={(el) => {
                 cardRefs.current[index] = el;
               }}
-              style={
-                reducedMotion
-                  ? undefined
-                  : { opacity: 0, transform: "translateY(24px)" }
-              }
             >
-              <div className="featured-project__media" aria-hidden="true">
-                <div className="featured-project__preview-window">
-                  <div className="featured-project__preview-topbar">
-                    <span />
-                    <span />
-                    <span />
+              <Link
+                to={buildProjectDetailPath(lang, project.id)}
+                className="featured-project__card-link"
+                aria-label={`${sectionCopy.caseStudy}: ${project.title}`}
+              />
+
+              {/* El clip-path del revelado vive en este wrapper interno, no
+                  en el <article> observado arriba: un elemento recortado a
+                  ancho 0 (inset 0 100% 0 0) hace que IntersectionObserver
+                  lo reporte como "sin intersección" para siempre, aunque
+                  esté perfectamente dentro del viewport — así que el
+                  <article> tiene que quedarse siempre sin recortar. */}
+              <div className="featured-project__reveal-mask">
+                <div className="featured-project__media" aria-hidden="true">
+                  <div className="featured-project__preview-window">
+                    <div className="featured-project__preview-topbar">
+                      <span />
+                      <span />
+                      <span />
+                    </div>
+
+                    <div
+                      className="featured-project__preview-content"
+                      ref={(el) => {
+                        previewRefs.current[index] = el;
+                      }}
+                    >
+                      {project.previewImage ? (
+                        <img
+                          className="featured-project__preview-image"
+                          src={project.previewImage}
+                          alt=""
+                        />
+                      ) : (
+                        <span className="featured-project__preview-label">
+                          {sectionCopy.preview}
+                        </span>
+                      )}
+                    </div>
+
+                    <span
+                      className="featured-project__sweep"
+                      aria-hidden="true"
+                    />
+                  </div>
+                </div>
+
+                <div className="featured-project__content">
+                  <p className="featured-project__meta">
+                    <span>{project.number}</span>
+                    <span>/</span>
+                    <span>{project.type}</span>
+                  </p>
+
+                  <h3>{project.title}</h3>
+
+                  <p className="featured-project__description">
+                    {project.description}
+                  </p>
+
+                  <div className="featured-project__tags">
+                    {project.stack.map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
                   </div>
 
-                  <div className="featured-project__preview-content">
-                    {project.previewImage ? (
-                      <img
-                        className="featured-project__preview-image"
-                        src={project.previewImage}
-                        alt=""
-                      />
-                    ) : (
-                      <span className="featured-project__preview-label">
-                        {sectionCopy.preview}
-                      </span>
-                    )}
+                  <div className="featured-project__footer">
+                    <span className="featured-project__status">
+                      {project.status}
+                    </span>
+
+                    <span className="featured-project__link">
+                      {sectionCopy.caseStudy}
+                      <ArrowRightIcon className="button__icon" />
+                    </span>
                   </div>
-
-                  <span className="featured-project__sweep" aria-hidden="true" />
-                </div>
-              </div>
-
-              <div className="featured-project__content">
-                <p className="featured-project__meta">
-                  <span>{project.number}</span>
-                  <span>/</span>
-                  <span>{project.type}</span>
-                </p>
-
-                <h3>{project.title}</h3>
-
-                <p className="featured-project__description">
-                  {project.description}
-                </p>
-
-                <div className="featured-project__tags">
-                  {project.stack.map((tag) => (
-                    <span key={tag}>{tag}</span>
-                  ))}
-                </div>
-
-                <div className="featured-project__footer">
-                  <span className="featured-project__status">
-                    {project.status}
-                  </span>
-
-                  <Link
-                    to={buildProjectDetailPath(lang, project.id)}
-                    className="featured-project__link"
-                  >
-                    {sectionCopy.caseStudy}
-                    <ArrowRightIcon className="button__icon" />
-                  </Link>
                 </div>
               </div>
             </article>

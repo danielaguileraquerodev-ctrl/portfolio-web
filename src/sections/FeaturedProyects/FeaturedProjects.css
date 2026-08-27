@@ -52,25 +52,43 @@
 
 .featured-project {
   position: relative;
+  cursor: pointer;
   min-height: 260px;
-  display: grid;
-  grid-template-columns: minmax(240px, 0.9fr) minmax(300px, 1.1fr);
   overflow: hidden;
   border: 1px solid var(--color-border);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.035), transparent 48%),
-    rgba(255, 255, 255, 0.018);
   transition: border-color 0.3s ease;
 }
 
-/* El revelado ligado al scroll (opacity/transform) se calcula en JS frame a
-   frame según la posición real de la tarjeta en el viewport — ver
-   FeaturedProjects.jsx (computeCardReveal). No hay clase ni transición CSS
-   para ello: una transición aquí introduciría retraso respecto al scroll
-   real, justo lo contrario de "atado a la posición de scroll". */
-
 .featured-project:hover {
   border-color: var(--color-accent);
+}
+
+/* Entrada con máscara, disparo único — ver FeaturedProjects.jsx (el
+   IntersectionObserver añade .featured-project--revealed al <article> la
+   primera vez que entra en el viewport y deja de observarlo; el estado
+   final queda fijo para siempre, no hay nada ligado al scroll aquí).
+
+   El clip-path vive en este wrapper interno y NO en el propio
+   .featured-project observado: un elemento recortado a ancho 0
+   (inset 0 100% 0 0) hace que Chromium reporte "sin intersección" para
+   siempre en IntersectionObserver, aunque esté dentro del viewport — así
+   que el elemento observado tiene que quedarse siempre sin recortar. */
+.featured-project__reveal-mask {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.9fr) minmax(300px, 1.1fr);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.035), transparent 48%),
+    rgba(255, 255, 255, 0.018);
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.featured-project--revealed .featured-project__reveal-mask {
+  clip-path: inset(0 0% 0 0);
+}
+
+.featured-project:nth-child(2) .featured-project__reveal-mask {
+  transition-delay: 150ms;
 }
 
 /* Preview: misma firma que .projects-page__preview-window (barra de
@@ -263,7 +281,18 @@
     transform 180ms ease;
 }
 
-.featured-project__link:hover {
+.featured-project__card-link {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+}
+
+.featured-project:has(.featured-project__card-link:focus-visible) {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+.featured-project:hover .featured-project__link {
   color: var(--color-text);
   transform: translateX(3px);
 }
@@ -273,7 +302,7 @@
     grid-template-columns: 1fr;
   }
 
-  .featured-project {
+  .featured-project__reveal-mask {
     grid-template-columns: minmax(220px, 0.8fr) minmax(320px, 1.2fr);
   }
 }
@@ -288,7 +317,7 @@
     flex-direction: column;
   }
 
-  .featured-project {
+  .featured-project__reveal-mask {
     grid-template-columns: 1fr;
   }
 
@@ -308,11 +337,16 @@
   }
 }
 
-/* Movimiento reducido: el efecto ligado al scroll ni se calcula (ver
-   FeaturedProjects.jsx) — las tarjetas se montan sin ningún estilo inline,
-   así que ya están en su estado final visible por defecto. Solo queda
-   apagar el shimmer del hover, que sigue siendo una animación. */
+/* Movimiento reducido: ni el revelado de entrada ni el parallax de la
+   preview se calculan (ver FeaturedProjects.jsx) — las tarjetas quedan
+   directamente en su estado final visible, sin transición. Solo queda
+   apagar el shimmer del hover, que sigue siendo una animación aparte. */
 @media (prefers-reduced-motion: reduce) {
+  .featured-project__reveal-mask {
+    clip-path: inset(0 0% 0 0);
+    transition: none;
+  }
+
   .featured-project__sweep {
     transition: none;
   }

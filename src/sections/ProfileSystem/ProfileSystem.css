@@ -76,6 +76,14 @@
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  transition:
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.profile-system__more:hover {
+  color: var(--color-text);
+  transform: translateX(3px);
 }
 
 .profile-system__grid {
@@ -143,6 +151,14 @@
   place-items: center;
   border: 1px solid rgba(200, 137, 69, 0.4);
   opacity: 0.86;
+  transition:
+    border-color 200ms ease,
+    opacity 200ms ease;
+}
+
+.profile-system__icon-box:hover {
+  border-color: var(--color-accent);
+  opacity: 1;
 }
 
 .profile-system__icon {
@@ -153,11 +169,47 @@
   stroke-width: 1.35;
   stroke-linecap: round;
   stroke-linejoin: round;
+  transition: stroke-width 200ms ease;
+}
+
+.profile-system__icon-box:hover .profile-system__icon {
+  stroke-width: 1.6;
 }
 
 .profile-system__card--about {
   min-height: 306px;
   padding: 26px 30px 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Entrada con máscara de las 3 columnas (about / middle / process) —
+   disparo único vía IntersectionObserver en ProfileSystem.jsx.
+   El clip-path vive en este wrapper interno, NUNCA en el contenedor
+   observado (.profile-system__card--about / __middle / __card--process):
+   un elemento recortado a ancho 0 hace que Chromium lo reporte como "sin
+   intersección" para siempre en IntersectionObserver, aunque esté dentro
+   del viewport — así que el elemento observado se queda siempre visible. */
+.profile-system__reveal-mask {
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.profile-system__column--revealed .profile-system__reveal-mask {
+  clip-path: inset(0 0% 0 0);
+}
+
+/* Escalonado entre las 3 columnas: about (1ª) / middle (2ª) / process (3ª). */
+.profile-system__grid > *:nth-child(2) .profile-system__reveal-mask {
+  transition-delay: 150ms;
+}
+
+.profile-system__grid > *:nth-child(3) .profile-system__reveal-mask {
+  transition-delay: 300ms;
+}
+
+.profile-system__card--about .profile-system__reveal-mask {
+  flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -200,15 +252,46 @@
 }
 
 .profile-system__seal {
+  position: relative;
   width: 142px;
   height: 142px;
   display: grid;
   place-items: center;
   justify-self: center;
+  cursor: pointer;
   transform: translateX(-24px);
   border: 1px solid rgba(200, 137, 69, 0.22);
   border-radius: 999px;
   opacity: 0.38;
+  transition:
+    transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 280ms ease,
+    border-color 280ms ease;
+}
+
+/* Halo detrás del círculo, solo visible en hover/foco. */
+.profile-system__seal::before {
+  content: "";
+  position: absolute;
+  inset: -18px;
+  z-index: -1;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(200, 137, 69, 0.35), transparent 70%);
+  opacity: 0;
+  transition: opacity 280ms ease;
+  pointer-events: none;
+}
+
+.profile-system__seal:hover,
+.profile-system__seal:focus-visible {
+  transform: translateX(-24px) scale(1.06);
+  opacity: 0.95;
+  border-color: var(--color-accent);
+}
+
+.profile-system__seal:hover::before,
+.profile-system__seal:focus-visible::before {
+  opacity: 1;
 }
 
 .profile-system__seal img {
@@ -216,6 +299,12 @@
   max-height: 194px;
   object-fit: contain;
   filter: sepia(1) saturate(1.4) brightness(0.9);
+  transition: filter 280ms ease;
+}
+
+.profile-system__seal:hover img,
+.profile-system__seal:focus-visible img {
+  filter: sepia(1) saturate(2.2) brightness(1.2);
 }
 
 .profile-system__stats {
@@ -229,9 +318,44 @@
 }
 
 .profile-system__stats div {
+  position: relative;
   min-width: 0;
-  padding: 0 24px 0 0;
+  padding: 0 24px 10px 0;
   border-right: 1px solid var(--color-border);
+  transition: transform 200ms ease;
+}
+
+/* Línea inferior de hover, independiente del contador ya mostrado en su
+   valor final — no reinicia ni interfiere con él.
+   Se queda DENTRO de la caja del bloque (bottom: 0, nunca en negativo):
+   .profile-system__reveal-mask sigue teniendo clip-path aplicado incluso
+   ya "abierto" (inset(0 0% 0 0) recorta exactamente en su propio borde),
+   así que cualquier cosa que sobresalga de su caja —aunque sea unos pocos
+   píxeles— se recortaría y no llegaría a verse. */
+.profile-system__stats div::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--color-accent);
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
+  pointer-events: none;
+}
+
+.profile-system__stats div:hover {
+  transform: translateY(-2px);
+}
+
+.profile-system__stats div:hover::after {
+  opacity: 1;
+  transform: scaleX(1);
 }
 
 .profile-system__stats div:not(:first-child) {
@@ -250,6 +374,7 @@
   font-weight: 400;
   line-height: 1;
   letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
 }
 
 .profile-system__stats span {
@@ -265,6 +390,11 @@
 }
 
 .profile-system__middle {
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-system__middle .profile-system__reveal-mask {
   display: grid;
   gap: 22px;
 }
@@ -292,6 +422,30 @@
   color: var(--color-text-muted);
   font-size: 0.86rem;
   line-height: 1.28;
+  /* Cascada de entrada, disparo único (ver ProfileSystem.jsx): cada <li>
+     lleva su propio índice en --reveal-index para escalonar el delay sin
+     necesitar una regla nth-child por ítem. El hover de más abajo usa su
+     propia transición (color) con delay 0 explícito, para no heredar este
+     escalonado de entrada cada vez que se pasa el cursor. */
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease,
+    color 180ms ease;
+  transition-delay:
+    calc(var(--reveal-index, 0) * 70ms),
+    calc(var(--reveal-index, 0) * 70ms),
+    0ms;
+}
+
+.profile-system__list--revealed li {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.profile-system__list li:hover {
+  color: var(--color-text);
 }
 
 .profile-system__list li span {
@@ -300,6 +454,14 @@
   border-radius: 999px;
   background: var(--color-accent);
   box-shadow: 0 0 0 5px rgba(200, 137, 69, 0.05);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.profile-system__list li:hover span {
+  transform: scale(1.5);
+  box-shadow: 0 0 0 6px rgba(200, 137, 69, 0.16);
 }
 
 .profile-system__card--process {
@@ -313,6 +475,13 @@
   display: grid;
   gap: 14px;
   margin-top: 20px;
+  /* El círculo (izquierda de cada paso) queda flush con el borde izquierdo
+     de .profile-system__reveal-mask, que sigue teniendo clip-path activo
+     incluso ya "revelado" (inset(0 0% 0 0) recorta justo en su propio
+     borde — ver comentario en .profile-system__reveal-mask). Sin este
+     margen, el halo de hover del círculo (::before, más abajo) se cortaría
+     en línea recta por la izquierda en cuanto sobresaliera 1px. */
+  padding-left: 10px;
 }
 
 .profile-system__process-item {
@@ -323,17 +492,50 @@
   align-items: start;
 }
 
+/* Efecto de foco: al pasar el cursor por un paso, los otros 3 atenúan su
+   opacidad. Envuelto en (prefers-reduced-motion: no-preference) en vez de
+   anularlo en el bloque de reduced-motion de más abajo, para que con
+   movimiento reducido el efecto ni siquiera exista — cero parpadeo,
+   siempre a opacidad completa, sin reaccionar al hover. Independiente del
+   glow (arriba) y de la iluminación de línea ya implementados. */
+@media (prefers-reduced-motion: no-preference) {
+  .profile-system__process-item {
+    transition: opacity 250ms ease;
+  }
+
+  .profile-system__process-list:has(.profile-system__process-item:hover)
+    .profile-system__process-item:not(:hover) {
+    opacity: 0.6;
+  }
+}
+
+/* Línea que se dibuja de arriba a abajo, disparo único (ver
+   ProfileSystem.jsx): cada segmento (entre un paso y el siguiente) crece
+   en cuanto su círculo de origen se enciende. */
 .profile-system__process-item:not(:last-child)::after {
   content: "";
   position: absolute;
   left: 26.5px;
   top: 54px;
   width: 1px;
-  height: 24px;
+  height: 0;
   background: linear-gradient(to bottom, rgba(200, 137, 69, 0.42), transparent);
+  transition:
+    height 0.4s ease-out,
+    background 220ms ease;
+}
+
+.profile-system__process-item--line-drawn:not(:last-child)::after {
+  height: 24px;
+}
+
+/* Hover sobre un paso completo: solo su propio segmento se aclara. */
+.profile-system__process-item:hover:not(:last-child)::after {
+  background: linear-gradient(to bottom, rgba(200, 137, 69, 0.85), rgba(200, 137, 69, 0.3));
 }
 
 .profile-system__process-number {
+  position: relative;
   width: 54px;
   height: 54px;
   display: grid;
@@ -344,6 +546,39 @@
   font-family: var(--font-mono);
   font-size: 0.64rem;
   letter-spacing: 0.12em;
+  transition:
+    background 0.35s ease,
+    border-color 0.35s ease;
+}
+
+.profile-system__process-number--lit {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* Halo de hover: ::before propio del círculo, con tamaño controlado
+   (inset: -8px) en vez de box-shadow. Con box-shadow, el halo se recortaba
+   en línea recta por la izquierda porque el círculo queda flush con el
+   borde de .profile-system__reveal-mask (ver el padding-left añadido en
+   .profile-system__process-list) — un box-shadow desbordando esa caja se
+   corta ahí igual que se cortaría con overflow: hidden. Este ::before
+   sigue siendo descendiente de esa misma caja, así que necesita el margen
+   de sobra del padding-left para poder dibujarse completo. */
+.profile-system__process-number::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(200, 137, 69, 0.35), transparent 70%);
+  opacity: 0;
+  transition: opacity 220ms ease;
+  pointer-events: none;
+}
+
+/* Hover sobre un paso completo: glow extra en su propio círculo, por
+   encima del que ya tiene tras "encenderse" con la entrada. */
+.profile-system__process-item:hover .profile-system__process-number::before {
+  opacity: 1;
 }
 
 .profile-system__process-item h4 {
@@ -373,6 +608,18 @@
   border: 1px solid rgba(241, 237, 229, 0.11);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.012);
+  /* Fade-in tras el último círculo del proceso, disparo único (ver
+     ProfileSystem.jsx). */
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
+}
+
+.profile-system__quote--visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .profile-system__quote-mark {
@@ -400,7 +647,7 @@
     grid-template-columns: 1fr;
   }
 
-  .profile-system__middle {
+  .profile-system__middle .profile-system__reveal-mask {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -425,7 +672,7 @@
     letter-spacing: 0.12em;
   }
 
-  .profile-system__middle,
+  .profile-system__middle .profile-system__reveal-mask,
   .profile-system__about-layout {
     grid-template-columns: 1fr;
   }
@@ -457,4 +704,38 @@
     border-right: 0;
   }
 
+}
+
+/* Movimiento reducido: ninguna de las animaciones de esta sección se
+   calcula ni se dispara (ver ProfileSystem.jsx) — todo queda directamente
+   en su estado final, sin transición, sin importar si las clases que
+   normalmente dispara el JS llegaron a aplicarse. */
+@media (prefers-reduced-motion: reduce) {
+  .profile-system__reveal-mask {
+    clip-path: inset(0 0% 0 0);
+    transition: none;
+  }
+
+  .profile-system__list li {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .profile-system__process-item:not(:last-child)::after {
+    height: 24px;
+    transition: none;
+  }
+
+  .profile-system__process-number {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    transition: none;
+  }
+
+  .profile-system__quote {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }

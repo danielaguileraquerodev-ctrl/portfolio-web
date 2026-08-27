@@ -158,9 +158,9 @@ function ContactLogoMark() {
           <path d={CONTACT_LOGO_PATH} />
         </clipPath>
         <linearGradient id="contact-logo-shimmer-gradient" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="rgba(255, 244, 224, 0)" />
-          <stop offset="50%" stopColor="rgba(255, 244, 224, 0.65)" />
-          <stop offset="100%" stopColor="rgba(255, 244, 224, 0)" />
+          <stop offset="0%" stopColor="rgba(245, 230, 204, 0)" />
+          <stop offset="50%" stopColor="rgba(245, 230, 204, 0.92)" />
+          <stop offset="100%" stopColor="rgba(245, 230, 204, 0)" />
         </linearGradient>
       </defs>
 
@@ -175,9 +175,9 @@ function ContactLogoMark() {
       <g clipPath="url(#contact-logo-clip)">
         <rect
           className="contact-circle__logo-shimmer"
-          x="-120"
+          x="0"
           y="0"
-          width="120"
+          width="80"
           height="270"
           fill="url(#contact-logo-shimmer-gradient)"
         />
@@ -186,11 +186,78 @@ function ContactLogoMark() {
   );
 }
 
+// --- Entrada del panel de info (mismo patrón que ProfileSystem) ---
+//
+// Disparo único vía IntersectionObserver sobre .contact-info__panel (que
+// nunca se recorta): un elemento con clip-path a ancho 0 hace que Chromium
+// lo reporte como "sin intersección" para siempre, así que el observado no
+// puede ser una columna. Al entrar en pantalla se revela cada columna con
+// su propia máscara escalonada, y la cascada de checkmarks se encadena
+// cuando la 3ª columna (la que los contiene) termina su revelado.
+const REVEAL_THRESHOLD = 0.2;
+const MASK_TRANSITION_MS = 700; // debe coincidir con el 0.7s del CSS
+const COLUMN_STAGGER_MS = 150; // 0 / 150 / 300 entre las 3 columnas
+const CHECKLIST_COLUMN_INDEX = 2;
+
+function prefersReducedMotion() {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
 function ContactPage({ lang = "es" }) {
   const pageCopy = copy[lang] ?? copy.es;
 
+  const panelRef = useRef(null);
+  const checklistRef = useRef(null);
+
   useEffect(() => {
     window.scrollTo(0, 0);
+  }, []);
+
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return undefined;
+
+    if (prefersReducedMotion()) {
+      panel.classList.add("contact-info__panel--revealed");
+      if (checklistRef.current) {
+        checklistRef.current.classList.add("contact-info__checklist--revealed");
+      }
+      return undefined;
+    }
+
+    const timeouts = [];
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          observer.unobserve(entry.target);
+          panel.classList.add("contact-info__panel--revealed");
+
+          const chainDelay =
+            CHECKLIST_COLUMN_INDEX * COLUMN_STAGGER_MS + MASK_TRANSITION_MS;
+          const id = window.setTimeout(() => {
+            if (checklistRef.current) {
+              checklistRef.current.classList.add(
+                "contact-info__checklist--revealed"
+              );
+            }
+          }, chainDelay);
+          timeouts.push(id);
+        });
+      },
+      { threshold: REVEAL_THRESHOLD }
+    );
+
+    observer.observe(panel);
+
+    return () => {
+      observer.disconnect();
+      timeouts.forEach((id) => window.clearTimeout(id));
+    };
   }, []);
 
   return (
@@ -244,7 +311,6 @@ function ContactPage({ lang = "es" }) {
 
           <div className="contact-hero__visual" aria-hidden="true">
             <div className="contact-circle">
-              <span className="contact-circle__glow" />
               <span className="contact-circle__mark contact-circle__mark--top" />
               <span className="contact-circle__mark contact-circle__mark--bottom" />
 
@@ -263,7 +329,7 @@ function ContactPage({ lang = "es" }) {
 
       <section className="contact-info" id="contacto-directo">
         <div className="container">
-          <div className="contact-info__panel">
+          <div className="contact-info__panel" ref={panelRef}>
             <article className="contact-info__column">
               <p className="contact-info__label">{pageCopy.directLabel}</p>
 
@@ -348,9 +414,11 @@ function ContactPage({ lang = "es" }) {
                 {pageCopy.briefingIntro}
               </p>
 
-              <ul className="contact-info__checklist">
-                {pageCopy.checklist.map((item) => (
-                  <li key={item}>{item}</li>
+              <ul className="contact-info__checklist" ref={checklistRef}>
+                {pageCopy.checklist.map((item, index) => (
+                  <li key={item} style={{ "--reveal-index": index }}>
+                    {item}
+                  </li>
                 ))}
               </ul>
             </article>

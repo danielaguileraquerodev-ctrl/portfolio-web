@@ -111,6 +111,28 @@
   background: rgba(200, 137, 69, 0.08);
 }
 
+/* Pulso táctil al hacer click — clase temporal añadida por JS (ver
+   ProjectsPage.jsx), quitada tras la animación. Solo anima `transform`,
+   así que no interfiere con la transición de color/fondo de arriba ni
+   con la del estado activo, de abajo. */
+.projects-page__filter--pulse {
+  animation: projectsFilterPulse 200ms ease-out;
+}
+
+@keyframes projectsFilterPulse {
+  0% {
+    transform: scale(1);
+  }
+
+  40% {
+    transform: scale(0.96);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
 .projects-page__filter--active {
   color: #17120d;
   border-color: rgba(200, 137, 69, 0.82);
@@ -144,6 +166,25 @@
   );
   filter: blur(20px);
   pointer-events: none;
+  /* Respiración sutil, en la misma línea que el glow del logo de Contacto
+     — deliberadamente con un ciclo (4s) distinto al flotado de la ventana
+     de código (6s, projectsCodeFloat) para que no queden sincronizados y
+     se sientan como dos movimientos independientes, no uno compitiendo
+     con el otro. */
+  animation: projectsGlowBreathe 4s ease-in-out infinite;
+}
+
+@keyframes projectsGlowBreathe {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
 }
 
 .projects-page__code-dots {
@@ -168,7 +209,6 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: rgba(15, 15, 13, 0.72);
-  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(6px);
   animation: projectsCodeFloat 6s ease-in-out infinite;
 }
@@ -413,6 +453,16 @@
     animation: none;
   }
 
+  .projects-page__code-glow {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .projects-page__filter--pulse {
+    animation: none;
+  }
+
   .projects-page__code-scan-beam {
     animation: none;
   }
@@ -490,6 +540,26 @@
 
 .projects-page__card--featured {
   min-height: 330px;
+}
+
+/* Entrada con máscara, disparo único por tarjeta — ver ProjectsPage.jsx
+   (IntersectionObserver, con seguimiento persistente por id de proyecto
+   para que una tarjeta ya revelada no vuelva a animarse al cambiar de
+   filtro y volver). El clip-path vive en este wrapper interno y NUNCA en
+   el <article> observado (.projects-page__card): un elemento recortado a
+   ancho 0 hace que Chromium lo reporte como "sin intersección" para
+   siempre en IntersectionObserver, aunque esté dentro del viewport. */
+.projects-page__reveal-mask {
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: calc(var(--reveal-order, 0) * 90ms);
+}
+
+.projects-page__card--revealed .projects-page__reveal-mask {
+  clip-path: inset(0 0% 0 0);
+}
+
+.projects-page__card--featured .projects-page__reveal-mask {
   display: grid;
   grid-template-columns: minmax(430px, 1.04fr) minmax(0, 0.96fr);
 }
@@ -721,7 +791,7 @@
 
 .projects-page__card-link:hover {
   gap: 15px;
-  color: #d89d57;
+  color: var(--color-text);
 }
 
 /* RESPONSIVE */
@@ -744,7 +814,7 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .projects-page__card--featured {
+  .projects-page__card--featured .projects-page__reveal-mask {
     grid-template-columns: 1fr;
   }
 
@@ -812,4 +882,18 @@
     align-items: flex-start;
   }
 
+}
+
+/* Movimiento reducido: el revelado de las tarjetas no se calcula ni se
+   dispara (ver ProjectsPage.jsx) — quedan directamente en su estado final
+   visible. Este bloque va DESPUÉS de la regla base de
+   .projects-page__reveal-mask (más arriba, en CARDS) a propósito: con
+   igual especificidad, si este override quedara antes en el archivo la
+   regla base ganaría igualmente la cascada por orden de aparición, sin
+   importar si el media query aplica o no. */
+@media (prefers-reduced-motion: reduce) {
+  .projects-page__reveal-mask {
+    clip-path: inset(0 0% 0 0);
+    transition: none;
+  }
 }
